@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { completePairing } from "@/lib/mock-api/store";
+import { useApiAuthToken } from "@/lib/api/auth-token";
+import { completePairing } from "@/lib/data/tenant";
 import type { Location } from "@/lib/types/schema";
 
 export function PairScreenDialog({
@@ -18,11 +19,13 @@ export function PairScreenDialog({
   locations: Location[];
   organizationId: string;
 }) {
+  const { getApiToken } = useApiAuthToken();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   if (!open) return null;
 
@@ -32,6 +35,7 @@ export function PairScreenDialog({
     setLocationId(locations[0]?.id ?? "");
     setError(null);
     setSuccess(null);
+    setSaving(false);
   }
 
   function handleClose() {
@@ -39,22 +43,28 @@ export function PairScreenDialog({
     onClose();
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setSaving(true);
     try {
       if (!locationId) throw new Error("Select a location.");
-      const screen = completePairing({
-        code,
-        locationId,
-        name: name || "Paired screen",
-        organizationId,
-      });
+      const token = await getApiToken();
+      const screen = await completePairing(
+        {
+          code,
+          locationId,
+          name: name || "Paired screen",
+          organizationId,
+        },
+        token,
+      );
       setSuccess(`Paired “${screen.name}” successfully.`);
       setTimeout(handleClose, 900);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Pairing failed.");
+      setSaving(false);
     }
   }
 
@@ -135,8 +145,8 @@ export function PairScreenDialog({
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={locations.length === 0}>
-              Pair screen
+            <Button type="submit" disabled={locations.length === 0 || saving}>
+              {saving ? "Pairing…" : "Pair screen"}
             </Button>
           </div>
         </form>

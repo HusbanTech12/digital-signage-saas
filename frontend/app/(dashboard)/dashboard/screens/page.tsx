@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useApiAuthToken } from "@/lib/api/auth-token";
 import {
   canAccessLocation,
   canManageScreens,
@@ -17,12 +18,13 @@ import {
   filterLocationsForUser,
   filterScreensForUser,
 } from "@/lib/access";
-import { deleteScreen, updateScreen } from "@/lib/mock-api/store";
+import { deleteScreen, updateScreen } from "@/lib/data/tenant";
 import type { Screen } from "@/lib/types/schema";
 
 export default function ScreensPage() {
   const { session, role } = useMockSession();
   const { locations, screens } = useMockStore();
+  const { getApiToken } = useApiAuthToken();
   const [pairOpen, setPairOpen] = useState(false);
   const [editing, setEditing] = useState<Screen | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,6 @@ export default function ScreensPage() {
 
   const visibleScreens = useMemo(() => {
     let list = filterScreensForUser(screens, session.user);
-    // Also show unpaired (pairing) screens for admins who can pair
     if (canPairScreens(role)) {
       const unpaired = screens.filter(
         (s) =>
@@ -70,11 +71,12 @@ export default function ScreensPage() {
     );
   }
 
-  function handleDelete(screen: Screen) {
+  async function handleDelete(screen: Screen) {
     setError(null);
     if (!confirm(`Remove screen “${screen.name}”?`)) return;
     try {
-      deleteScreen(screen.id);
+      const token = await getApiToken();
+      await deleteScreen(screen.id, token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed.");
     }
@@ -206,7 +208,7 @@ export default function ScreensPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(screen)}
+                        onClick={() => void handleDelete(screen)}
                       >
                         Remove
                       </Button>
@@ -230,6 +232,7 @@ export default function ScreensPage() {
         <EditScreenDialog
           screen={editing}
           locations={visibleLocations}
+          getApiToken={getApiToken}
           onClose={() => setEditing(null)}
         />
       ) : null}
@@ -240,10 +243,12 @@ export default function ScreensPage() {
 function EditScreenDialog({
   screen,
   locations,
+  getApiToken,
   onClose,
 }: {
   screen: Screen;
   locations: LocationLike[];
+  getApiToken: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(screen.name);
@@ -251,20 +256,29 @@ function EditScreenDialog({
   const [orientation, setOrientation] = useState(screen.orientation);
   const [resolution, setResolution] = useState(screen.resolution);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaving(true);
     try {
-      updateScreen(screen.id, {
-        name,
-        locationId: locationId || null,
-        orientation,
-        resolution,
-      });
+      const token = await getApiToken();
+      await updateScreen(
+        screen.id,
+        {
+          name,
+          locationId: locationId || null,
+          orientation,
+          resolution,
+        },
+        token,
+      );
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -336,7 +350,9 @@ function EditScreenDialog({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">Save</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
         </div>
       </form>
     </div>

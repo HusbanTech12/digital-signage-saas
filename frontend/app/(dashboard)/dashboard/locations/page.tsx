@@ -7,6 +7,7 @@ import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApiAuthToken } from "@/lib/api/auth-token";
 import {
   canCreateLocation,
   canDeleteLocation,
@@ -17,12 +18,13 @@ import {
   createLocation,
   deleteLocation,
   updateLocation,
-} from "@/lib/mock-api/store";
+} from "@/lib/data/tenant";
 import type { Location } from "@/lib/types/schema";
 
 export default function LocationsPage() {
   const { session, role } = useMockSession();
   const { locations, screens } = useMockStore();
+  const { getApiToken } = useApiAuthToken();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Location | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +57,12 @@ export default function LocationsPage() {
     setError(null);
   }
 
-  function handleDelete(location: Location) {
+  async function handleDelete(location: Location) {
     setError(null);
     try {
       if (!confirm(`Delete location “${location.name}”?`)) return;
-      deleteLocation(location.id);
+      const token = await getApiToken();
+      await deleteLocation(location.id, token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed.");
     }
@@ -137,7 +140,7 @@ export default function LocationsPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handleDelete(location)}
+                            onClick={() => void handleDelete(location)}
                           >
                             Delete
                           </Button>
@@ -156,6 +159,7 @@ export default function LocationsPage() {
         <LocationFormDialog
           organizationId={session.organization.id}
           location={editing}
+          getApiToken={getApiToken}
           onClose={() => {
             setFormOpen(false);
             setEditing(null);
@@ -169,10 +173,12 @@ export default function LocationsPage() {
 function LocationFormDialog({
   organizationId,
   location,
+  getApiToken,
   onClose,
 }: {
   organizationId: string;
   location: Location | null;
+  getApiToken: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(location?.name ?? "");
@@ -181,19 +187,27 @@ function LocationFormDialog({
     location?.timezone ?? "America/Los_Angeles",
   );
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaving(true);
     try {
+      const token = await getApiToken();
       if (location) {
-        updateLocation(location.id, { name, address, timezone });
+        await updateLocation(location.id, { name, address, timezone }, token);
       } else {
-        createLocation({ organizationId, name, address, timezone });
+        await createLocation(
+          { organizationId, name, address, timezone },
+          token,
+        );
       }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -244,7 +258,9 @@ function LocationFormDialog({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">{location ? "Save" : "Create"}</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Saving…" : location ? "Save" : "Create"}
+          </Button>
         </div>
       </form>
     </div>

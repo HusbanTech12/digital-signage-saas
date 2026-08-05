@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMockStore } from "@/components/providers/mock-data-provider";
-import { startPairingSession } from "@/lib/mock-api/store";
+import { getScreenPublicApi } from "@/lib/api/tenant";
+import { DEFAULT_ORGANIZATION_ID, useLiveApi } from "@/lib/api/config";
+import { startPairingSession } from "@/lib/data/tenant";
+import { upsertScreen } from "@/lib/mock-api/store";
 
 /**
  * Kiosk pairing screen — no dashboard chrome, no Clerk required.
@@ -13,25 +16,56 @@ export default function PairPage() {
   const router = useRouter();
   const { screens } = useMockStore();
   const [screenId, setScreenId] = useState<string | null>(null);
+  const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
 
   useEffect(() => {
-    try {
-      const { screen, pairing } = startPairingSession();
-      setScreenId(screen.id);
-      setCode(pairing.code);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start pairing.");
-    }
+    if (started.current) return;
+    started.current = true;
+    void (async () => {
+      try {
+        const { screen, pairing } = await startPairingSession({
+          organizationId: DEFAULT_ORGANIZATION_ID,
+        });
+        setScreenId(screen.id);
+        setDeviceToken(screen.deviceToken);
+        setCode(pairing.code);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Could not start pairing.",
+        );
+      }
+    })();
   }, []);
+
+  // Live API: poll public screen status so this tab sees pairing complete.
+  useEffect(() => {
+    if (!useLiveApi() || !screenId || !deviceToken) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const screen = await getScreenPublicApi(screenId, deviceToken);
+        if (cancelled) return;
+        upsertScreen(screen);
+      } catch {
+        /* keep showing code while backend is briefly unavailable */
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => void tick(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [screenId, deviceToken]);
 
   const screen = screens.find((s) => s.id === screenId);
   const paired = Boolean(
     screen && screen.status === "online" && screen.locationId !== null,
   );
 
-  // Auto-advance to the kiosk player once paired
   useEffect(() => {
     if (!paired || !screen) return;
     const t = window.setTimeout(() => {
@@ -40,11 +74,14 @@ export default function PairPage() {
     return () => window.clearTimeout(t);
   }, [paired, screen, router]);
 
-  function refreshCode() {
+  async function refreshCode() {
     setError(null);
     try {
-      const { screen: next, pairing } = startPairingSession();
+      const { screen: next, pairing } = await startPairingSession({
+        organizationId: DEFAULT_ORGANIZATION_ID,
+      });
       setScreenId(next.id);
+      setDeviceToken(next.deviceToken);
       setCode(pairing.code);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not refresh code.");
@@ -86,7 +123,7 @@ export default function PairPage() {
 
           <button
             type="button"
-            onClick={refreshCode}
+            onClick={() => void refreshCode()}
             className="mt-8 text-sm text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline"
           >
             Generate a new code

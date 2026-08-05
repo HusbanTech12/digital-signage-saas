@@ -538,3 +538,68 @@ export function resetMockStore() {
   pendingPairings = [];
   emit();
 }
+
+/** Replace tenant slices after a live API fetch (menus/templates unchanged). */
+export function hydrateTenantData(input: {
+  organizations?: Organization[];
+  locations?: Location[];
+  screens?: Screen[];
+}) {
+  if (input.organizations) {
+    organizationsState = input.organizations.map((o) => ({ ...o }));
+  }
+  if (input.locations) {
+    locationsState = input.locations.map((l) => ({ ...l }));
+  }
+  if (input.screens) {
+    screensState = input.screens.map((s) => ({ ...s }));
+  }
+  emit();
+}
+
+export function upsertOrganization(org: Organization) {
+  const idx = organizationsState.findIndex((o) => o.id === org.id);
+  if (idx === -1) {
+    organizationsState = [...organizationsState, { ...org }];
+  } else {
+    organizationsState = organizationsState.map((o) =>
+      o.id === org.id ? { ...org } : o,
+    );
+  }
+  emit();
+}
+
+export function upsertLocation(location: Location) {
+  const idx = locationsState.findIndex((l) => l.id === location.id);
+  if (idx === -1) {
+    locationsState = [...locationsState, { ...location }];
+  } else {
+    locationsState = locationsState.map((l) =>
+      l.id === location.id ? { ...location } : l,
+    );
+  }
+  emit();
+}
+
+export function removeLocationLocal(locationId: string) {
+  locationsState = locationsState.filter((l) => l.id !== locationId);
+  emit();
+}
+
+export function upsertScreen(screen: Screen) {
+  const idx = screensState.findIndex((s) => s.id === screen.id);
+  if (idx === -1) {
+    screensState = [...screensState, { ...screen }];
+  } else {
+    screensState = screensState.map((s) =>
+      s.id === screen.id ? { ...screen } : s,
+    );
+  }
+  emit();
+}
+
+export function removeScreenLocal(screenId: string) {
+  screensState = screensState.filter((s) => s.id !== screenId);
+  pendingPairings = pendingPairings.filter((p) => p.screenId !== screenId);
+  emit();
+}

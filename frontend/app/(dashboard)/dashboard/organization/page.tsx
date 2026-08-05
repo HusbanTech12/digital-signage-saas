@@ -7,12 +7,14 @@ import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApiAuthToken } from "@/lib/api/auth-token";
 import { canManageOrganization } from "@/lib/access";
-import { updateOrganization } from "@/lib/mock-api/store";
+import { updateOrganization } from "@/lib/data/tenant";
 
 export default function OrganizationPage() {
   const { session, role } = useMockSession();
   const { organizations, locations, screens } = useMockStore();
+  const { getApiToken } = useApiAuthToken();
   const org =
     organizations.find((o) => o.id === session.organization.id) ??
     session.organization;
@@ -21,6 +23,7 @@ export default function OrganizationPage() {
   const [slug, setSlug] = useState(org.slug);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   if (!canManageOrganization(role)) {
     return (
@@ -38,15 +41,19 @@ export default function OrganizationPage() {
   ).length;
   const screenCount = screens.filter((s) => s.organizationId === org.id).length;
 
-  function handleSave(e: React.FormEvent) {
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
     setError(null);
+    setSaving(true);
     try {
-      updateOrganization(org.id, { name, slug });
+      const token = await getApiToken();
+      await updateOrganization(org.id, { name, slug }, token);
       setMessage("Organization updated.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Update failed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -98,7 +105,9 @@ export default function OrganizationPage() {
         {error ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : null}
-        <Button type="submit">Save changes</Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? "Saving…" : "Save changes"}
+        </Button>
       </form>
     </div>
   );

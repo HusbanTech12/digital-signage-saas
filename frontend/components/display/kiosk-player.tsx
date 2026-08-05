@@ -103,9 +103,9 @@ export function KioskPlayer({ screenId }: { screenId: string }) {
 
   useEffect(() => {
     if (source !== "live") return;
-    touchScreenHeartbeat(screenId);
+    void touchScreenHeartbeat(screenId);
     const id = window.setInterval(() => {
-      touchScreenHeartbeat(screenId);
+      void touchScreenHeartbeat(screenId);
     }, HEARTBEAT_MS);
     return () => window.clearInterval(id);
   }, [screenId, source]);

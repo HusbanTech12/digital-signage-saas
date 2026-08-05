@@ -28,12 +28,16 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
 
+    # When true (development), accept Authorization: Bearer dev:<clerk_user_id>
+    # so the dashboard role switcher can hit real APIs without a Clerk JWT.
+    dev_auth_bypass: bool = True
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
-    async_database_url(self) -> str:
+    def async_database_url(self) -> str:
         url = self.database_url
         if url.startswith("postgresql://"):
             return url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -42,11 +46,11 @@ class Settings(BaseSettings):
         return url
 
     @property
-    alembic_database_url(self) -> str:
+    def alembic_database_url(self) -> str:
         return self.database_url_sync or self.async_database_url
 
     @property
-    resolved_jwks_url(self) -> str:
+    def resolved_jwks_url(self) -> str:
         if self.clerk_jwks_url:
             return self.clerk_jwks_url
         if self.clerk_frontend_api:

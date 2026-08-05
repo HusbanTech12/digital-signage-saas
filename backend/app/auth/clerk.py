@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 from sqlalchemy import select
@@ -66,15 +66,47 @@ def verify_clerk_token(token: str) -> ClerkClaims:
     return ClerkClaims(sub=sub, email=email if isinstance(email, str) else None, raw=payload)
 
 
+def _dev_bypass_claims(token: str) -> ClerkClaims | None:
+    settings = get_settings()
+    if not settings.dev_auth_bypass:
+        return None
+    if settings.app_env not in ("development", "dev", "local"):
+        return None
+    if not token.startswith("dev:"):
+        return None
+    clerk_user_id = token.removeprefix("dev:").strip()
+    if not clerk_user_id:
+        return None
+    return ClerkClaims(sub=clerk_user_id, email=None, raw={"dev": True})
+
+
 async def get_clerk_claims(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    x_dev_clerk_user_id: str | None = Header(default=None, alias="X-Dev-Clerk-User-Id"),
 ) -> ClerkClaims:
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Bearer token",
+    settings = get_settings()
+
+    if credentials is not None and credentials.scheme.lower() == "bearer":
+        bypass = _dev_bypass_claims(credentials.credentials)
+        if bypass is not None:
+            return bypass
+        return verify_clerk_token(credentials.credentials)
+
+    if (
+        settings.dev_auth_bypass
+        and settings.app_env in ("development", "dev", "local")
+        and x_dev_clerk_user_id
+    ):
+        return ClerkClaims(
+            sub=x_dev_clerk_user_id.strip(),
+            email=None,
+            raw={"dev": True},
         )
-    return verify_clerk_token(credentials.credentials)
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Missing Bearer token",
+    )
 
 
 async def get_current_user(

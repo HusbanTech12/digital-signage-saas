@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routes import health
+from app.routes import dev, health, locations, me, organizations, pairing, screens
 from db import models as _models  # noqa: F401 — register metadata for Alembic
 
 
@@ -26,6 +26,12 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health.router)
+    app.include_router(me.router)
+    app.include_router(organizations.router)
+    app.include_router(locations.router)
+    app.include_router(screens.router)
+    app.include_router(pairing.router)
+    app.include_router(dev.router)
 
     return app
 
