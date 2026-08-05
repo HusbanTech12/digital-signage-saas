@@ -2,7 +2,10 @@ node_modules/
 .next/
 .env
 .env.local
+backend/.env
+frontend/.env.local
 venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -10,4 +13,8 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
 

@@ -1,20 +1,5 @@
-from fastapi import FastAPI, WebSocket
-from fastapi.responses import JSONResponse
+"""Uvicorn entrypoint: `uvicorn main:app --reload` from the backend/ folder."""
 
-app = FastAPI(title="Digital Signage SaaS API")
+from app.main import app
 
-
-@app.get("/health")
-async def health():
-    return JSONResponse({"status": "ok"})
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Echo: {data}")
-    except Exception:
-        await websocket.close()
+__all__ = ["app"]
