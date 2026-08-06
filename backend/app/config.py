@@ -50,6 +50,18 @@ class Settings(BaseSettings):
         return self.database_url_sync or self.async_database_url
 
     @property
+    def uses_supabase_pooler(self) -> bool:
+        url = self.async_database_url.lower()
+        return "pooler.supabase.com" in url or ":6543/" in url
+
+    @property
+    def async_engine_connect_args(self) -> dict:
+        """Supabase transaction pooler (PgBouncer) needs statement_cache_size=0."""
+        if self.uses_supabase_pooler:
+            return {"statement_cache_size": 0}
+        return {}
+
+    @property
     def resolved_jwks_url(self) -> str:
         if self.clerk_jwks_url:
             return self.clerk_jwks_url

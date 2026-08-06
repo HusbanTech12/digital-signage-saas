@@ -151,3 +151,10 @@ export function getMeBootstrapApi(token: AuthToken) {
     { token },
   );
 }
+
+export function onboardMeApi(token: AuthToken) {
+  return apiFetch<{ user: User; organization: Organization; created: boolean }>(
+    "/api/v1/me/onboard",
+    { method: "POST", token },
+  );
+}

@@ -15,12 +15,13 @@ import {
   canPublishMenus,
   filterScreensForUser,
 } from "@/lib/access";
+import { useApiAuthToken } from "@/lib/api/auth-token";
 import {
   createMenuItem,
   deleteMenuItem,
   updateMenu,
   updateMenuItem,
-} from "@/lib/mock-api/store";
+} from "@/lib/data/menus";
 import type { MenuItem } from "@/lib/types/schema";
 
 export default function MenuDetailPage() {
@@ -28,6 +29,7 @@ export default function MenuDetailPage() {
   const menuId = params.menuId;
   const { session, role } = useMockSession();
   const { menus, menuItems, templates, screens } = useMockStore();
+  const { getApiToken } = useApiAuthToken();
   const [publishOpen, setPublishOpen] = useState(false);
   const [itemForm, setItemForm] = useState<MenuItem | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +68,11 @@ export default function MenuDetailPage() {
     );
   }
 
-  function rename(name: string) {
+  async function rename(name: string) {
     setError(null);
     try {
-      updateMenu(menu!.id, { name });
+      const token = await getApiToken();
+      await updateMenu(menu!.id, { name }, token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Rename failed.");
     }
@@ -115,7 +118,7 @@ export default function MenuDetailPage() {
             key={menu.name}
             onBlur={(e) => {
               if (e.target.value.trim() && e.target.value !== menu.name) {
-                rename(e.target.value);
+                void rename(e.target.value);
               }
             }}
           />
@@ -192,9 +195,19 @@ export default function MenuDetailPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => {
-                          if (confirm(`Delete “${item.name}”?`)) {
-                            deleteMenuItem(item.id);
-                          }
+                          if (!confirm(`Delete “${item.name}”?`)) return;
+                          void (async () => {
+                            try {
+                              const token = await getApiToken();
+                              await deleteMenuItem(item.id, token);
+                            } catch (err) {
+                              setError(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Delete failed.",
+                              );
+                            }
+                          })();
                         }}
                       >
                         Delete
@@ -213,6 +226,7 @@ export default function MenuDetailPage() {
           organizationId={session.organization.id}
           menuId={menu.id}
           item={itemForm === "new" ? null : itemForm}
+          getApiToken={getApiToken}
           onClose={() => setItemForm(null)}
         />
       ) : null}
@@ -232,11 +246,13 @@ function ItemFormDialog({
   organizationId,
   menuId,
   item,
+  getApiToken,
   onClose,
 }: {
   organizationId: string;
   menuId: string;
   item: MenuItem | null;
+  getApiToken: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const [name, setName] = useState(item?.name ?? "");
@@ -245,37 +261,49 @@ function ItemFormDialog({
   const [description, setDescription] = useState(item?.description ?? "");
   const [available, setAvailable] = useState(item?.available ?? true);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaving(true);
     try {
       const parsed = Number(price);
       if (Number.isNaN(parsed) || parsed < 0) {
         throw new Error("Enter a valid price.");
       }
+      const token = await getApiToken();
       if (item) {
-        updateMenuItem(item.id, {
-          name,
-          price: parsed,
-          category,
-          description,
-          available,
-        });
+        await updateMenuItem(
+          item.id,
+          {
+            name,
+            price: parsed,
+            category,
+            description,
+            available,
+          },
+          token,
+        );
       } else {
-        createMenuItem({
-          menuId,
-          organizationId,
-          name,
-          price: parsed,
-          category,
-          description,
-          available,
-        });
+        await createMenuItem(
+          {
+            menuId,
+            organizationId,
+            name,
+            price: parsed,
+            category,
+            description,
+            available,
+          },
+          token,
+        );
       }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -347,7 +375,9 @@ function ItemFormDialog({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">{item ? "Save" : "Add"}</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Saving…" : item ? "Save" : "Add"}
+          </Button>
         </div>
       </form>
     </div>

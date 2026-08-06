@@ -4,12 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CanvasBoard } from "@/components/display/canvas-board";
 import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
+import { useLiveApi } from "@/lib/api/config";
 import { readDisplayCache, writeDisplayCache } from "@/lib/display/cache";
 import { touchScreenHeartbeat } from "@/lib/display/heartbeat";
+import { connectScreenRealtime } from "@/lib/display/realtime";
+import { saveDeviceToken } from "@/lib/display/device-token";
 import {
-  isScreenPairing,
+  getScreenDeviceToken,
   resolveDisplayPayload,
-  screenExists,
 } from "@/lib/display/resolve";
 import type { DisplayPayload, DisplaySource } from "@/lib/display/types";
 import { subscribeMockStore } from "@/lib/mock-api/store";
@@ -17,12 +19,28 @@ import { subscribeMockStore } from "@/lib/mock-api/store";
 const POLL_MS = 4000;
 const HEARTBEAT_MS = 15000;
 
-export function KioskPlayer({ screenId }: { screenId: string }) {
+export function KioskPlayer({
+  screenId,
+  initialDeviceToken,
+}: {
+  screenId: string;
+  initialDeviceToken?: string;
+}) {
   const router = useRouter();
+  const liveApi = useLiveApi();
   const [payload, setPayload] = useState<DisplayPayload | null>(null);
   const [source, setSource] = useState<DisplaySource>("none");
   const [online, setOnline] = useState(true);
   const [booting, setBooting] = useState(true);
+  const [wsStatus, setWsStatus] = useState<"connecting" | "open" | "closed">(
+    "closed",
+  );
+
+  const applyPayload = useCallback(async (next: DisplayPayload) => {
+    setPayload(next);
+    setSource("live");
+    await writeDisplayCache(next);
+  }, []);
 
   const refresh = useCallback(async () => {
     const browserOnline =
@@ -39,56 +57,97 @@ export function KioskPlayer({ screenId }: { screenId: string }) {
       return;
     }
 
-    if (isScreenPairing(screenId)) {
-      router.replace("/pair");
-      return;
-    }
+    try {
+      const result = await resolveDisplayPayload(screenId);
+      if (result.kind === "pairing") {
+        router.replace("/pair");
+        return;
+      }
+      if (result.kind === "payload") {
+        await applyPayload(result.payload);
+        setBooting(false);
+        return;
+      }
+      if (result.kind === "missing") {
+        const cached = await readDisplayCache(screenId);
+        if (cached) {
+          setPayload(cached);
+          setSource("cache");
+          setBooting(false);
+          return;
+        }
+        router.replace("/pair");
+        return;
+      }
 
-    const live = resolveDisplayPayload(screenId);
-    if (live) {
-      setPayload(live);
-      setSource("live");
-      await writeDisplayCache(live);
+      // empty — paired but no published menu
+      const cached = await readDisplayCache(screenId);
+      if (cached) {
+        setPayload(cached);
+        setSource("cache");
+      } else {
+        setPayload(null);
+        setSource("none");
+      }
       setBooting(false);
-      return;
-    }
-
-    const cached = await readDisplayCache(screenId);
-    if (cached) {
-      setPayload(cached);
-      setSource("cache");
+    } catch {
+      const cached = await readDisplayCache(screenId);
+      if (cached) {
+        setPayload(cached);
+        setSource("cache");
+      }
       setBooting(false);
-      return;
     }
+  }, [applyPayload, router, screenId]);
 
-    // Unknown screen with no cache — send to pairing
-    if (!screenExists(screenId)) {
-      router.replace("/pair");
-      return;
+  useEffect(() => {
+    if (initialDeviceToken) {
+      saveDeviceToken(screenId, initialDeviceToken);
     }
-
-    setPayload(null);
-    setSource("none");
-    setBooting(false);
-  }, [router, screenId]);
+  }, [initialDeviceToken, screenId]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  // Poll mock store (stand-in for WebSocket + polling fallback)
+  // Live: WebSocket push + polling fallback. Mock: store subscribe + poll.
   useEffect(() => {
-    const unsub = subscribeMockStore(() => {
-      void refresh();
-    });
+    if (!liveApi) {
+      const unsub = subscribeMockStore(() => {
+        void refresh();
+      });
+      const pollId = window.setInterval(() => {
+        void refresh();
+      }, POLL_MS);
+      return () => {
+        unsub();
+        window.clearInterval(pollId);
+      };
+    }
+
+    const deviceToken =
+      initialDeviceToken || getScreenDeviceToken(screenId) || null;
+    let disposeWs: (() => void) | undefined;
+    if (deviceToken) {
+      saveDeviceToken(screenId, deviceToken);
+      disposeWs = connectScreenRealtime(screenId, deviceToken, {
+        onPayload: (next) => {
+          void applyPayload(next);
+          setBooting(false);
+        },
+        onStatus: setWsStatus,
+      });
+    }
+
     const pollId = window.setInterval(() => {
       void refresh();
     }, POLL_MS);
+
     return () => {
-      unsub();
+      disposeWs?.();
       window.clearInterval(pollId);
     };
-  }, [refresh]);
+  }, [applyPayload, initialDeviceToken, liveApi, refresh, screenId]);
 
   useEffect(() => {
     const onOnline = () => void refresh();
@@ -102,7 +161,7 @@ export function KioskPlayer({ screenId }: { screenId: string }) {
   }, [refresh]);
 
   useEffect(() => {
-    if (source !== "live") return;
+    if (source !== "live" && source !== "cache") return;
     void touchScreenHeartbeat(screenId);
     const id = window.setInterval(() => {
       void touchScreenHeartbeat(screenId);
@@ -132,7 +191,7 @@ export function KioskPlayer({ screenId }: { screenId: string }) {
           dashboard, or reconnect — last content will appear from cache when
           available.
         </p>
-        <StatusChip online={online} source={source} />
+        <StatusChip online={online} source={source} wsStatus={wsStatus} />
       </div>
     );
   }
@@ -170,7 +229,6 @@ export function KioskPlayer({ screenId }: { screenId: string }) {
         />
       )}
 
-      {/* Item strip overlay when canvas exists but items were published */}
       {showCanvas && payload.items.length > 0 ? (
         <div className="pointer-events-none absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent px-6 pt-16 pb-5">
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-200">
@@ -184,7 +242,12 @@ export function KioskPlayer({ screenId }: { screenId: string }) {
         </div>
       ) : null}
 
-      <StatusChip online={online} source={source} compact />
+      <StatusChip
+        online={online}
+        source={source}
+        wsStatus={wsStatus}
+        compact
+      />
     </div>
   );
 }
@@ -192,22 +255,26 @@ export function KioskPlayer({ screenId }: { screenId: string }) {
 function StatusChip({
   online,
   source,
+  wsStatus,
   compact,
 }: {
   online: boolean;
   source: DisplaySource;
+  wsStatus: "connecting" | "open" | "closed";
   compact?: boolean;
 }) {
+  const wsLabel =
+    wsStatus === "open" ? "ws" : wsStatus === "connecting" ? "ws…" : "poll";
   if (compact) {
     return (
       <div className="pointer-events-none absolute right-3 bottom-3 z-30 rounded bg-black/50 px-2 py-1 font-mono text-[10px] tracking-wide text-zinc-400 uppercase">
-        {online ? "live" : "offline"} · {source}
+        {online ? "live" : "offline"} · {source} · {wsLabel}
       </div>
     );
   }
   return (
     <p className="mt-8 font-mono text-xs tracking-wide text-zinc-600 uppercase">
-      {online ? "online" : "offline"} · source {source}
+      {online ? "online" : "offline"} · source {source} · {wsLabel}
     </p>
   );
 }

@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { canEditDesigner, canManageTemplates } from "@/lib/access";
+import { useApiAuthToken } from "@/lib/api/auth-token";
 import {
   createTemplate,
   deleteTemplate,
   duplicateTemplate,
-} from "@/lib/mock-api/store";
+} from "@/lib/data/menus";
 
 export default function TemplatesPage() {
   return (
@@ -36,6 +37,7 @@ function TemplatesPageInner() {
   const menuId = searchParams.get("menuId");
   const { session, role } = useMockSession();
   const { templates } = useMockStore();
+  const { getApiToken } = useApiAuthToken();
   const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,10 +63,14 @@ function TemplatesPageInner() {
     try {
       let id = templateId;
       if (isGlobal) {
-        const copy = duplicateTemplate({
-          templateId,
-          organizationId: session.organization.id,
-        });
+        const token = await getApiToken();
+        const copy = await duplicateTemplate(
+          {
+            templateId,
+            organizationId: session.organization.id,
+          },
+          token,
+        );
         id = copy.id;
       }
       const qs = menuId ? `?menuId=${menuId}` : "";
@@ -124,15 +130,17 @@ function TemplatesPageInner() {
                   size="sm"
                   variant="ghost"
                   onClick={() => {
-                    if (confirm(`Delete “${template.name}”?`)) {
+                    if (!confirm(`Delete “${template.name}”?`)) return;
+                    void (async () => {
                       try {
-                        deleteTemplate(template.id);
+                        const token = await getApiToken();
+                        await deleteTemplate(template.id, token);
                       } catch (err) {
                         setError(
                           err instanceof Error ? err.message : "Delete failed.",
                         );
                       }
-                    }
+                    })();
                   }}
                 >
                   Delete
@@ -148,6 +156,7 @@ function TemplatesPageInner() {
         <CreateTemplateDialog
           organizationId={session.organization.id}
           menuId={menuId}
+          getApiToken={getApiToken}
           onClose={() => setCreateOpen(false)}
         />
       ) : null}
@@ -158,27 +167,37 @@ function TemplatesPageInner() {
 function CreateTemplateDialog({
   organizationId,
   menuId,
+  getApiToken,
   onClose,
 }: {
   organizationId: string;
   menuId: string | null;
+  getApiToken: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaving(true);
     try {
-      const template = createTemplate({ organizationId, name, description });
+      const token = await getApiToken();
+      const template = await createTemplate(
+        { organizationId, name, description },
+        token,
+      );
       const qs = menuId ? `?menuId=${menuId}` : "";
       router.push(`/dashboard/templates/${template.id}/edit${qs}`);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create failed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -217,7 +236,9 @@ function CreateTemplateDialog({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">Create & edit</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Creating…" : "Create & edit"}
+          </Button>
         </div>
       </form>
     </div>

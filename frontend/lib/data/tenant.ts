@@ -3,6 +3,7 @@
  * Uses FastAPI when NEXT_PUBLIC_API_URL is set; otherwise the in-memory mock store.
  */
 
+import { ApiError } from "@/lib/api/client";
 import {
   completePairingApi,
   createLocationApi,
@@ -11,11 +12,17 @@ import {
   getMyOrganizationApi,
   listLocations,
   listScreens,
+  onboardMeApi,
   startPairingSessionApi,
   updateLocationApi,
   updateOrganizationApi,
   updateScreenApi,
 } from "@/lib/api/tenant";
+import {
+  listMenuItemsApi,
+  listMenusApi,
+  listTemplatesApi,
+} from "@/lib/api/menus";
 import { DEFAULT_ORGANIZATION_ID, useLiveApi } from "@/lib/api/config";
 import {
   completePairing as completePairingMock,
@@ -43,18 +50,38 @@ import type {
 
 type Token = string;
 
+export async function ensureProvisioned(token: Token) {
+  try {
+    return await getMyOrganizationApi(token);
+  } catch (err) {
+    const needsOnboard =
+      err instanceof ApiError &&
+      err.status === 403 &&
+      /not provisioned/i.test(err.message);
+    if (!needsOnboard) throw err;
+    const onboarded = await onboardMeApi(token);
+    return onboarded.organization;
+  }
+}
+
 export async function refreshTenantFromApi(token: Token) {
-  const [organization, locations, screens] = await Promise.all([
-    getMyOrganizationApi(token),
+  const organization = await ensureProvisioned(token);
+  const [locations, screens, menus, menuItems, templates] = await Promise.all([
     listLocations(token),
     listScreens(token),
+    listMenusApi(token),
+    listMenuItemsApi(token),
+    listTemplatesApi(token),
   ]);
   hydrateTenantData({
     organizations: [organization],
     locations,
     screens,
+    menus,
+    menuItems,
+    templates,
   });
-  return { organization, locations, screens };
+  return { organization, locations, screens, menus, menuItems, templates };
 }
 
 export async function updateOrganization(

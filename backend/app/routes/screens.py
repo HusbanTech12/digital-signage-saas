@@ -9,7 +9,9 @@ from app.auth.access import (
     scope_screens_query,
 )
 from app.auth.clerk import get_current_user
+from app.schemas.display import DisplayPayloadOut
 from app.schemas.screen import ScreenHeartbeatIn, ScreenOut, ScreenUpdate
+from app.services.display_content import build_display_payload
 from app.services.pairing import utcnow
 from db.models import Location, Screen, User
 from db.session import get_db
@@ -62,6 +64,36 @@ async def get_screen_public(
     if screen is None:
         raise HTTPException(status_code=404, detail="Screen not found")
     return screen
+
+
+@router.get("/{screen_id}/content", response_model=DisplayPayloadOut)
+async def get_screen_content(
+    screen_id: str,
+    device_token: str,
+    db: AsyncSession = Depends(get_db),
+) -> DisplayPayloadOut:
+    """Polling fallback for the kiosk — full menu/template snapshot."""
+    result = await db.execute(
+        select(Screen).where(
+            Screen.id == screen_id,
+            Screen.device_token == device_token,
+        )
+    )
+    screen = result.scalar_one_or_none()
+    if screen is None:
+        raise HTTPException(status_code=404, detail="Screen not found")
+    if screen.location_id is None or screen.status == "pairing":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Screen is still pairing",
+        )
+    payload = await build_display_payload(db, screen)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Screen is still pairing",
+        )
+    return payload
 
 
 @router.patch("/{screen_id}", response_model=ScreenOut)

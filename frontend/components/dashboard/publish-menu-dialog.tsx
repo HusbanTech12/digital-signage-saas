@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { publishMenu } from "@/lib/mock-api/store";
+import { useApiAuthToken } from "@/lib/api/auth-token";
+import { publishMenu } from "@/lib/data/menus";
 import type { Screen, Template } from "@/lib/types/schema";
 
 export function PublishMenuDialog({
@@ -22,6 +23,7 @@ export function PublishMenuDialog({
   screens: Screen[];
   defaultTemplateId?: string;
 }) {
+  const { getApiToken } = useApiAuthToken();
   const pairedScreens = useMemo(
     () => screens.filter((s) => s.locationId !== null),
     [screens],
@@ -34,6 +36,7 @@ export function PublishMenuDialog({
   );
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   if (!open) return null;
 
@@ -43,23 +46,29 @@ export function PublishMenuDialog({
     );
   }
 
-  function handlePublish(e: React.FormEvent) {
+  async function handlePublish(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setSaving(true);
     try {
       if (!templateId) throw new Error("Select a template.");
-      const menu = publishMenu({
-        menuId,
-        templateId,
-        screenIds: selected,
-      });
+      const token = await getApiToken();
+      const menu = await publishMenu(
+        {
+          menuId,
+          templateId,
+          screenIds: selected,
+        },
+        token,
+      );
       setSuccess(
         `Published v${menu.version} to ${selected.length} screen${selected.length === 1 ? "" : "s"}.`,
       );
       setTimeout(onClose, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Publish failed.");
+      setSaving(false);
     }
   }
 
@@ -78,8 +87,7 @@ export function PublishMenuDialog({
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Publish menu</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Choose a template layout and the screens that should receive this
-            menu (mock push — live WebSocket sync comes later).
+            Choose a template and screens. Live sync arrives in Prompt 8.
           </p>
         </div>
 
@@ -101,30 +109,32 @@ export function PublishMenuDialog({
           </select>
         </div>
 
-        <div className="space-y-2">
-          <Label>Screens</Label>
-          <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-            {pairedScreens.length === 0 ? (
-              <li className="px-2 py-3 text-sm text-muted-foreground">
-                No paired screens yet.
-              </li>
-            ) : (
-              pairedScreens.map((screen) => (
-                <li key={screen.id}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(screen.id)}
-                      onChange={() => toggle(screen.id)}
-                    />
-                    <span className="flex-1 truncate">{screen.name}</span>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Screens</legend>
+          {pairedScreens.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No paired screens.</p>
+          ) : (
+            <ul className="max-h-48 space-y-2 overflow-y-auto">
+              {pairedScreens.map((screen) => (
+                <li key={screen.id} className="flex items-center gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    id={`scr-${screen.id}`}
+                    checked={selected.includes(screen.id)}
+                    onChange={() => toggle(screen.id)}
+                  />
+                  <label
+                    htmlFor={`scr-${screen.id}`}
+                    className="flex flex-1 items-center justify-between gap-2"
+                  >
+                    <span>{screen.name}</span>
                     <StatusBadge status={screen.status} />
                   </label>
                 </li>
-              ))
-            )}
-          </ul>
-        </div>
+              ))}
+            </ul>
+          )}
+        </fieldset>
 
         {error ? (
           <p className="text-sm text-destructive" role="alert">
@@ -141,7 +151,9 @@ export function PublishMenuDialog({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">Publish now</Button>
+          <Button type="submit" disabled={saving || pairedScreens.length === 0}>
+            {saving ? "Publishing…" : "Publish"}
+          </Button>
         </div>
       </form>
     </div>

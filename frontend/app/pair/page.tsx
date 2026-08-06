@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMockStore } from "@/components/providers/mock-data-provider";
 import { getScreenPublicApi } from "@/lib/api/tenant";
 import { DEFAULT_ORGANIZATION_ID, useLiveApi } from "@/lib/api/config";
+import { saveDeviceToken } from "@/lib/display/device-token";
 import { startPairingSession } from "@/lib/data/tenant";
 import { upsertScreen } from "@/lib/mock-api/store";
 
@@ -29,6 +30,7 @@ export default function PairPage() {
         const { screen, pairing } = await startPairingSession({
           organizationId: DEFAULT_ORGANIZATION_ID,
         });
+        saveDeviceToken(screen.id, screen.deviceToken);
         setScreenId(screen.id);
         setDeviceToken(screen.deviceToken);
         setCode(pairing.code);
@@ -80,6 +82,7 @@ export default function PairPage() {
       const { screen: next, pairing } = await startPairingSession({
         organizationId: DEFAULT_ORGANIZATION_ID,
       });
+      saveDeviceToken(next.id, next.deviceToken);
       setScreenId(next.id);
       setDeviceToken(next.deviceToken);
       setCode(pairing.code);

@@ -15,7 +15,8 @@ import {
   filterScreensForUser,
 } from "@/lib/access";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
-import { updateTemplate } from "@/lib/mock-api/store";
+import { useApiAuthToken } from "@/lib/api/auth-token";
+import { updateTemplate } from "@/lib/data/menus";
 
 export default function TemplateEditPage() {
   return (
@@ -37,6 +38,7 @@ function TemplateEditPageInner() {
   const menuId = searchParams.get("menuId");
   const { session, role } = useMockSession();
   const { templates, menus, menuItems, screens } = useMockStore();
+  const { getApiToken } = useApiAuthToken();
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -99,12 +101,13 @@ function TemplateEditPageInner() {
     );
   }
 
-  function handleSave(json: DesignerCanvasJson) {
+  async function handleSave(json: DesignerCanvasJson) {
     setSaving(true);
     setStatus(null);
     try {
-      updateTemplate(template!.id, { canvasJson: json });
-      setStatus("Layout saved to mock store");
+      const token = await getApiToken();
+      await updateTemplate(template!.id, { canvasJson: json }, token);
+      setStatus("Layout saved");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -119,7 +122,7 @@ function TemplateEditPageInner() {
         description={
           menu
             ? `Editing layout for menu “${menu.name}”. Drag items onto the board, save, then publish.`
-            : "Drag-and-drop Fabric.js editor. Save writes to the mock template store."
+            : "Drag-and-drop Fabric.js editor. Save persists the template canvas."
         }
         actions={
           <>

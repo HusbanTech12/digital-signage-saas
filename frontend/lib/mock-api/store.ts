@@ -539,11 +539,14 @@ export function resetMockStore() {
   emit();
 }
 
-/** Replace tenant slices after a live API fetch (menus/templates unchanged). */
+/** Replace tenant slices after a live API fetch. */
 export function hydrateTenantData(input: {
   organizations?: Organization[];
   locations?: Location[];
   screens?: Screen[];
+  menus?: Menu[];
+  menuItems?: MenuItem[];
+  templates?: Template[];
 }) {
   if (input.organizations) {
     organizationsState = input.organizations.map((o) => ({ ...o }));
@@ -553,6 +556,18 @@ export function hydrateTenantData(input: {
   }
   if (input.screens) {
     screensState = input.screens.map((s) => ({ ...s }));
+  }
+  if (input.menus) {
+    menusState = input.menus.map((m) => ({ ...m }));
+  }
+  if (input.menuItems) {
+    menuItemsState = input.menuItems.map((i) => ({ ...i }));
+  }
+  if (input.templates) {
+    templatesState = input.templates.map((t) => ({
+      ...t,
+      canvasJson: structuredClone(t.canvasJson),
+    }));
   }
   emit();
 }
@@ -601,5 +616,52 @@ export function upsertScreen(screen: Screen) {
 export function removeScreenLocal(screenId: string) {
   screensState = screensState.filter((s) => s.id !== screenId);
   pendingPairings = pendingPairings.filter((p) => p.screenId !== screenId);
+  emit();
+}
+
+export function upsertMenu(menu: Menu) {
+  const idx = menusState.findIndex((m) => m.id === menu.id);
+  if (idx === -1) menusState = [...menusState, { ...menu }];
+  else menusState = menusState.map((m) => (m.id === menu.id ? { ...menu } : m));
+  emit();
+}
+
+export function removeMenuLocal(menuId: string) {
+  menusState = menusState.filter((m) => m.id !== menuId);
+  menuItemsState = menuItemsState.filter((i) => i.menuId !== menuId);
+  emit();
+}
+
+export function upsertMenuItem(item: MenuItem) {
+  const idx = menuItemsState.findIndex((i) => i.id === item.id);
+  if (idx === -1) menuItemsState = [...menuItemsState, { ...item }];
+  else
+    menuItemsState = menuItemsState.map((i) =>
+      i.id === item.id ? { ...item } : i,
+    );
+  emit();
+}
+
+export function removeMenuItemLocal(itemId: string) {
+  menuItemsState = menuItemsState.filter((i) => i.id !== itemId);
+  emit();
+}
+
+export function upsertTemplate(template: Template) {
+  const copy = {
+    ...template,
+    canvasJson: structuredClone(template.canvasJson),
+  };
+  const idx = templatesState.findIndex((t) => t.id === template.id);
+  if (idx === -1) templatesState = [...templatesState, copy];
+  else
+    templatesState = templatesState.map((t) =>
+      t.id === template.id ? copy : t,
+    );
+  emit();
+}
+
+export function removeTemplateLocal(templateId: string) {
+  templatesState = templatesState.filter((t) => t.id !== templateId);
   emit();
 }

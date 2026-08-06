@@ -69,9 +69,10 @@ With `NEXT_PUBLIC_USE_MOCK_API=true` (or no `NEXT_PUBLIC_API_URL`), the dashboar
 ### Env notes
 
 - `DATABASE_URL` must use `postgresql+asyncpg://…`
+- Supabase **transaction pooler** (port `6543`) needs `statement_cache_size=0` (already handled in `db/session.py` / Alembic)
 - Set `CLERK_JWKS_URL` / `CLERK_FRONTEND_API` for JWT verification
 - `DEV_AUTH_BYPASS=true` (development) accepts `Authorization: Bearer dev:<clerk_user_id>`
-- Prefer Docker Postgres for migrations; Supabase pooler (port 6543) can be flaky with Alembic — use a direct DB URL if needed
+- Prefer a direct Supabase DB URL (port `5432`) for migrations when the pooler misbehaves
 
 ### Core tenant APIs (Prompt 6)
 
@@ -83,6 +84,21 @@ With `NEXT_PUBLIC_USE_MOCK_API=true` (or no `NEXT_PUBLIC_API_URL`), the dashboar
 | GET/PATCH/DELETE | `/api/v1/screens`… | Clerk / dev bypass |
 | POST | `/api/v1/pairing/sessions` | Public (kiosk) |
 | POST | `/api/v1/pairing/complete` | Clerk / dev bypass |
+| GET/POST | `/api/v1/menus` | Clerk / dev bypass |
+| PATCH/DELETE | `/api/v1/menus/{id}` | Clerk / dev bypass |
+| POST | `/api/v1/menus/publish` | Clerk / dev bypass |
+| GET/POST/PATCH/DELETE | `/api/v1/menu-items`… | Clerk / dev bypass |
+| GET/POST/PATCH/DELETE | `/api/v1/templates`… | Clerk / dev bypass |
+| GET | `/api/v1/screens/{id}/content?device_token=` | Screen device token |
+| WS | `/api/v1/screens/{id}/ws?device_token=` | Screen device token |
+
+### Real-time sync (Prompt 8)
+
+Publish (`POST /api/v1/menus/publish`) writes screen assignments, then fans out a typed envelope `{ type, screenId, payload, ts }` over Redis pub/sub (channel `signage:screen:{screenId}`). Each API worker relays to local WebSocket subscribers.
+
+- Kiosk connects to `WS /api/v1/screens/{id}/ws?device_token=…`, reconnects with exponential backoff, and polls `GET …/content` every few seconds as fallback.
+- Without Redis, a single uvicorn worker still pushes in-process (fine for local demo).
+- Start Redis locally: `cd infra && docker compose up -d redis`
 
 ## Repo layout
 

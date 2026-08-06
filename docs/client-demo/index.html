@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Digital Menu Board SaaS — Progress Demo</title>
+    <style>
+      :root {
+        --bg0: #0f1419;
+        --bg1: #1a2332;
+        --ink: #f4f1ea;
+        --muted: #a8b3c4;
+        --accent: #e8a54b;
+        --line: rgba(244, 241, 234, 0.12);
+        --ok: #6fbf8a;
+        --soon: #c9a227;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: radial-gradient(1200px 600px at 10% -10%, #2a3a52 0%, transparent 55%),
+          radial-gradient(900px 500px at 100% 0%, #3a2a18 0%, transparent 50%), var(--bg0);
+        color: var(--ink);
+        font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      }
+      .deck {
+        height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+      }
+      .slide {
+        display: none;
+        width: min(1100px, 100%);
+        min-height: min(620px, 86vh);
+        padding: 3rem 3.25rem;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: linear-gradient(160deg, rgba(26, 35, 50, 0.95), rgba(15, 20, 25, 0.92));
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      }
+      .slide.active {
+        display: block;
+        animation: in 0.35s ease;
+      }
+      @keyframes in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .eyebrow {
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        color: var(--accent);
+        margin: 0 0 1rem;
+      }
+      h1 {
+        font-size: clamp(2.2rem, 4vw, 3.4rem);
+        line-height: 1.1;
+        margin: 0 0 1rem;
+        font-weight: 700;
+      }
+      h2 {
+        font-size: clamp(1.7rem, 3vw, 2.4rem);
+        margin: 0 0 1rem;
+      }
+      p,
+      li {
+        color: var(--muted);
+        font-size: 1.15rem;
+        line-height: 1.55;
+      }
+      .lead {
+        font-size: 1.35rem;
+        max-width: 42ch;
+      }
+      ul {
+        padding-left: 1.2rem;
+      }
+      li {
+        margin: 0.45rem 0;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.1rem 1.2rem;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .card strong {
+        display: block;
+        color: var(--ink);
+        margin-bottom: 0.35rem;
+      }
+      .status {
+        display: inline-block;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+        margin-bottom: 0.55rem;
+      }
+      .done {
+        background: rgba(111, 191, 138, 0.18);
+        color: var(--ok);
+      }
+      .next {
+        background: rgba(201, 162, 39, 0.18);
+        color: var(--soon);
+      }
+      .bar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.85rem 1.25rem;
+        background: rgba(8, 10, 14, 0.75);
+        border-top: 1px solid var(--line);
+        backdrop-filter: blur(8px);
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      .bar button {
+        background: var(--accent);
+        color: #1a1208;
+        border: 0;
+        border-radius: 8px;
+        padding: 0.55rem 1rem;
+        font-weight: 650;
+        cursor: pointer;
+      }
+      .bar button.ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+      .progress {
+        height: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        overflow: hidden;
+        width: 180px;
+      }
+      .progress > span {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+        width: 0%;
+      }
+      .big-num {
+        font-size: 4rem;
+        font-weight: 750;
+        color: var(--accent);
+        line-height: 1;
+        margin: 0.5rem 0 0.25rem;
+      }
+      kbd {
+        font-family: ui-monospace, Consolas, monospace;
+        border: 1px solid var(--line);
+        padding: 0.1rem 0.4rem;
+        border-radius: 5px;
+        color: var(--ink);
+      }
+      @media (max-width: 800px) {
+        .slide {
+          padding: 1.5rem;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck">
+      <section class="slide active" data-slide>
+        <p class="eyebrow">Client progress demo</p>
+        <h1>Digital Menu Board SaaS</h1>
+        <p class="lead">
+          A multi-tenant platform to design restaurant menus and push them to in-store
+          screens — managed from one dashboard.
+        </p>
+        <p>Status today: <strong style="color: var(--ink)">~65–70% of MVP complete</strong></p>
+      </section>
+
+      <section class="slide" data-slide>
+        <p class="eyebrow">The product</p>
+        <h2>What the client is buying</h2>
+        <div class="grid">
+          <div class="card">
+            <strong>Marketing site</strong>
+            <p>Public landing page that explains the product and drives sign-up.</p>
+          </div>
+          <div class="card">
+            <strong>Operator dashboard</strong>
+            <p>Org, locations, screens, menus, templates, roles — for restaurant teams.</p>
+          </div>
+          <div class="card">
+            <strong>Menu designer</strong>
+            <p>Visual editor to build menu boards and publish to selected screens.</p>
+          </div>
+          <div class="card">
+            <strong>Kiosk display + pairing</strong>
+            <p>TV/tablet client that shows the menu and pairs with a short code.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide>
+        <p class="eyebrow">Progress</p>
+        <h2>How far we are</h2>
+        <div class="big-num">~70%</div>
+        <p>Core product UI + live backend APIs for tenants and menus are in place.</p>
+        <div class="grid">
+          <div class="card">
+            <span class="status done">Done</span>
+            <strong>Frontend foundation</strong>
+            <p>Auth (Clerk), dashboard shell, marketing page, designer, kiosk UI.</p>
+          </div>
+          <div class="card">
+            <span class="status done">Done</span>
+            <strong>Backend foundation</strong>
+            <p>FastAPI, Supabase Postgres, Alembic, Clerk JWT, org-scoped data.</p>
+          </div>
+          <div class="card">
+            <span class="status done">Done</span>
+            <strong>Tenant + menu APIs</strong>
+            <p>Organizations, locations, screens, pairing, menus, items, templates, publish.</p>
+          </div>
+          <div class="card">
+            <span class="status next">Next</span>
+            <strong>Realtime + ops</strong>
+            <p>WebSocket push, theme scheduling, POS sync, production deploy.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide>
+        <p class="eyebrow">Live walkthrough</p>
+        <h2>What we will show in the app</h2>
+        <ol>
+          <li>Marketing landing page</li>
+          <li>Sign-in → dashboard overview</li>
+          <li>Organization, locations, screens</li>
+          <li>Screen pairing flow (`/pair`)</li>
+          <li>Menus, templates, designer, publish</li>
+          <li>Kiosk display client (`/display/...`)</li>
+        </ol>
+        <p style="margin-top: 1.5rem">
+          Tip while recording: keep browser zoom at 100%, hide bookmarks bar, use one
+          window full screen.
+        </p>
+      </section>
+
+      <section class="slide" data-slide>
+        <p class="eyebrow">Architecture</p>
+        <h2>How it is built</h2>
+        <div class="grid">
+          <div class="card">
+            <strong>Frontend</strong>
+            <p>Next.js App Router · TypeScript · Tailwind · Clerk · designer canvas</p>
+          </div>
+          <div class="card">
+            <strong>Backend</strong>
+            <p>FastAPI · SQLAlchemy async · Alembic · Supabase Postgres</p>
+          </div>
+          <div class="card">
+            <strong>Auth & tenancy</strong>
+            <p>Clerk users mapped into org-scoped API users (onboarding supported)</p>
+          </div>
+          <div class="card">
+            <strong>Demo tenant</strong>
+            <p>“Harbor & Hearth” seed data: locations, screens, menus, templates</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="slide" data-slide>
+        <p class="eyebrow">Remaining work</p>
+        <h2>What comes next</h2>
+        <ul>
+          <li><strong style="color: var(--ink)">Prompt 8</strong> — WebSocket sync so publish updates screens in under ~3 seconds</li>
+          <li><strong style="color: var(--ink)">Prompt 9</strong> — Theme scheduling + screen online/offline heartbeats</li>
+          <li><strong style="color: var(--ink)">Prompt 10</strong> — First POS price/availability sync</li>
+          <li><strong style="color: var(--ink)">Prompt 11</strong> — Staging/production deployment</li>
+          <li><strong style="color: var(--ink)">Prompt 12</strong> — AI menu assist + mobile PWA (post-MVP)</li>
+        </ul>
+      </section>
+
+      <section class="slide" data-slide>
+        <p class="eyebrow">Ask</p>
+        <h2>Ready for feedback</h2>
+        <p class="lead">
+          The foundation is demoable end-to-end for dashboard + menus + kiosk pairing.
+          Next milestone: live push to screens and staging deploy.
+        </p>
+        <p>Questions for the client:</p>
+        <ul>
+          <li>Which POS provider first?</li>
+          <li>Preferred hosting (Railway / Render)?</li>
+          <li>Any branding / template priorities before realtime work?</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="bar">
+      <div>
+        <button class="ghost" id="prev" type="button">← Prev</button>
+        <button id="next" type="button">Next →</button>
+      </div>
+      <div class="progress"><span id="fill"></span></div>
+      <div>
+        <span id="counter">1 / 7</span>
+        · <kbd>←</kbd> <kbd>→</kbd> · <kbd>F</kbd> fullscreen
+      </div>
+    </div>
+
+    <script>
+      const slides = [...document.querySelectorAll("[data-slide]")];
+      let i = 0;
+      const counter = document.getElementById("counter");
+      const fill = document.getElementById("fill");
+
+      function show(n) {
+        i = Math.max(0, Math.min(slides.length - 1, n));
+        slides.forEach((s, idx) => s.classList.toggle("active", idx === i));
+        counter.textContent = `${i + 1} / ${slides.length}`;
+        fill.style.width = `${((i + 1) / slides.length) * 100}%`;
+      }
+
+      document.getElementById("prev").onclick = () => show(i - 1);
+      document.getElementById("next").onclick = () => show(i + 1);
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === " ") {
+          e.preventDefault();
+          show(i + 1);
+        }
+        if (e.key === "ArrowLeft") show(i - 1);
+        if (e.key === "f" || e.key === "F") {
+          if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+          else document.exitFullscreen();
+        }
+      });
+      show(0);
+    </script>
+  </body>
+</html>

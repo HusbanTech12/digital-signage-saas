@@ -8,12 +8,14 @@ import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApiAuthToken } from "@/lib/api/auth-token";
 import { canManageMenus } from "@/lib/access";
-import { createMenu, deleteMenu } from "@/lib/mock-api/store";
+import { createMenu, deleteMenu } from "@/lib/data/menus";
 
 export default function MenusPage() {
   const { session, role } = useMockSession();
   const { menus, menuItems } = useMockStore();
+  const { getApiToken } = useApiAuthToken();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,11 +38,12 @@ export default function MenusPage() {
     );
   }
 
-  function handleDelete(menuId: string, name: string) {
+  async function handleDelete(menuId: string, name: string) {
     setError(null);
     if (!confirm(`Delete menu “${name}” and all its items?`)) return;
     try {
-      deleteMenu(menuId);
+      const token = await getApiToken();
+      await deleteMenu(menuId, token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed.");
     }
@@ -117,7 +120,7 @@ export default function MenusPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDelete(menu.id, menu.name)}
+                          onClick={() => void handleDelete(menu.id, menu.name)}
                         >
                           Delete
                         </Button>
@@ -134,6 +137,7 @@ export default function MenusPage() {
       {open ? (
         <CreateMenuDialog
           organizationId={session.organization.id}
+          getApiToken={getApiToken}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -143,22 +147,29 @@ export default function MenusPage() {
 
 function CreateMenuDialog({
   organizationId,
+  getApiToken,
   onClose,
 }: {
   organizationId: string;
+  getApiToken: () => Promise<string | null>;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaving(true);
     try {
-      createMenu({ organizationId, name });
+      const token = await getApiToken();
+      await createMenu({ organizationId, name }, token);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create failed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -190,7 +201,9 @@ function CreateMenuDialog({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit">Create</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Creating…" : "Create"}
+          </Button>
         </div>
       </form>
     </div>
