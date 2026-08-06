@@ -14,6 +14,7 @@ from app.routes import (
     menus,
     organizations,
     pairing,
+    pos,
     screens,
     templates,
     themes,
@@ -101,6 +102,8 @@ def create_app() -> FastAPI:
     app.include_router(menus.router)
     app.include_router(templates.router)
     app.include_router(themes.router)
+    app.include_router(pos.router)
+    app.include_router(pos.webhook_router)
     app.include_router(dev.router)
 
     return app

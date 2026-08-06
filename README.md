@@ -2,14 +2,14 @@
 
 Multi-tenant digital menu board platform.
 
-- **Frontend**: Next.js (App Router, TypeScript, Tailwind CSS) — dashboard, designer, kiosk, marketing
+- **Frontend**: Next.js (App Router, TypeScript, Tailwind CSS)
 - **Backend**: FastAPI + SQLAlchemy (async) + Alembic — Supabase Postgres / local Docker
 - **Auth**: Clerk
-- **Jobs / cache**: Celery + Redis (wired in later prompts)
+- **Jobs / realtime**: Celery + Redis, WebSocket screen push
 
-See `AGENTS.md` and `PROMPTS.md` for product scope and build order.
+## Getting Started
 
-## Frontend
+### Frontend
 
 ```bash
 cd frontend
@@ -17,110 +17,68 @@ npm install
 npm run dev
 ```
 
-Copy `frontend/.env.example` → `frontend/.env.local` and add Clerk keys.
+Copy `frontend/.env.example` → `frontend/.env.local` and add Clerk keys + `NEXT_PUBLIC_API_URL`.
 
-## Backend
-
-Requires **Python 3.11+** and either local Docker Postgres or Supabase.
+### Backend
 
 ```bash
-# Local Postgres + Redis
-cd infra
-docker compose up -d
-
-cd ../backend
+cd backend
 python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-# source .venv/bin/activate
-
+# Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-copy .env.example .env   # or edit backend/.env
-
-alembic upgrade head
 uvicorn main:app --reload --port 8000
 ```
 
-Health check: [http://localhost:8000/health](http://localhost:8000/health)
-
-### Seed demo tenant (Prompt 6)
+Seed demo tenant:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/dev/seed
 ```
 
-Seeds Harbor & Hearth org, locations, screens (pairing code `482917`), and demo users for `DEV_AUTH_BYPASS`.
+Optional Redis (realtime + Celery):
 
-### Wire the frontend to the API
-
-In `frontend/.env.local`:
-
-```
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_DEFAULT_ORGANIZATION_ID=org_demo_001
-# Remove or set false once the backend is running + seeded:
-NEXT_PUBLIC_USE_MOCK_API=false
+```bash
+cd infra
+docker compose up -d redis
 ```
 
-With `NEXT_PUBLIC_USE_MOCK_API=true` (or no `NEXT_PUBLIC_API_URL`), the dashboard keeps using the in-memory mock store.
-
-### Env notes
-
-- `DATABASE_URL` must use `postgresql+asyncpg://…`
-- Supabase **transaction pooler** (port `6543`) needs `statement_cache_size=0` (already handled in `db/session.py` / Alembic)
-- Set `CLERK_JWKS_URL` / `CLERK_FRONTEND_API` for JWT verification
-- `DEV_AUTH_BYPASS=true` (development) accepts `Authorization: Bearer dev:<clerk_user_id>`
-- Prefer a direct Supabase DB URL (port `5432`) for migrations when the pooler misbehaves
-
-### Core tenant APIs (Prompt 6)
-
-| Method | Path | Auth |
-|---|---|---|
-| GET/PATCH | `/api/v1/organizations/{id}` | Clerk / dev bypass |
-| GET/POST | `/api/v1/locations` | Clerk / dev bypass |
-| PATCH/DELETE | `/api/v1/locations/{id}` | Clerk / dev bypass |
-| GET/PATCH/DELETE | `/api/v1/screens`… | Clerk / dev bypass |
-| POST | `/api/v1/pairing/sessions` | Public (kiosk) |
-| POST | `/api/v1/pairing/complete` | Clerk / dev bypass |
-| GET/POST | `/api/v1/menus` | Clerk / dev bypass |
-| PATCH/DELETE | `/api/v1/menus/{id}` | Clerk / dev bypass |
-| POST | `/api/v1/menus/publish` | Clerk / dev bypass |
-| GET/POST/PATCH/DELETE | `/api/v1/menu-items`… | Clerk / dev bypass |
-| GET/POST/PATCH/DELETE | `/api/v1/templates`… | Clerk / dev bypass |
-| GET | `/api/v1/screens/{id}/content?device_token=` | Screen device token |
-| WS | `/api/v1/screens/{id}/ws?device_token=` | Screen device token |
-
-### Real-time sync (Prompt 8)
-
-Publish (`POST /api/v1/menus/publish`) writes screen assignments, then fans out a typed envelope `{ type, screenId, payload, ts }` over Redis pub/sub (channel `signage:screen:{screenId}`). Each API worker relays to local WebSocket subscribers.
-
-- Kiosk connects to `WS /api/v1/screens/{id}/ws?device_token=…`, reconnects with exponential backoff, and polls `GET …/content` every few seconds as fallback.
-- Without Redis, a single uvicorn worker still pushes in-process (fine for local demo).
-- Start Redis locally: `cd infra && docker compose up -d redis`
-
-### Theme scheduling + offline detection (Prompt 9)
-
-| Method | Path | Auth |
-|---|---|---|
-| GET/POST | `/api/v1/themes` | Clerk / admin roles |
-| PATCH/DELETE | `/api/v1/themes/{id}` | Clerk / admin roles |
-| POST | `/api/v1/themes/apply-now` | Clerk / admin roles |
-
-- Time-of-day and date-range themes auto-switch `active_menu_id` / `active_template_id` (location timezone).
-- Date-range wins over time-of-day when both match.
-- Stale heartbeats mark screens `online` → `offline` after `SCREEN_OFFLINE_AFTER_SECONDS` (default 60).
-- Dashboard Themes page + Screens status poll every 20s.
-- Uvicorn runs an inline scheduler every 30s by default. Production-style:
+### Celery (themes / offline / POS queue)
 
 ```bash
 cd backend
-celery -A workers.celery_app worker --loglevel=info
-celery -A workers.celery_app beat --loglevel=info
+celery -A workers.celery_app.celery_app worker -l info
+celery -A workers.celery_app.celery_app beat -l info
 ```
 
-Set `INLINE_SCHEDULER=false` when Celery Beat owns scheduling.
+Without Celery, the API still runs an inline theme/offline scheduler and processes POS webhooks inline.
+
+## POS integration (Prompt 10 — Square first)
+
+First provider: **Square** (demo webhook + simulate). Adapters also include `clear_mock`.
+
+| Method | Path | Auth |
+|---|---|---|
+| GET/POST | `/api/v1/pos/integrations` | Clerk |
+| PATCH/DELETE | `/api/v1/pos/integrations/{id}` | Clerk |
+| GET | `/api/v1/pos/integrations/{id}/events` | Clerk |
+| GET | `/api/v1/pos/sync-status` | Clerk |
+| POST | `/api/v1/pos/integrations/{id}/simulate` | Clerk |
+| POST | `/api/v1/webhooks/pos/{provider}/{id}` | Webhook secret |
+
+Seed creates `pos_square_downtown` with SKU map:
+
+- `SKU-LATTE` → `item_latte`
+- `SKU-AVOCADO` → `item_avocado`
+- `SKU-SOUP` → `item_soup`
+
+Simulate from **Dashboard → Settings**, or:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/webhooks/pos/square/pos_square_downtown \
+  -H "Content-Type: application/json" \
+  -H "X-Pos-Signature: demo-pos-secret" \
+  -d "{\"updates\":[{\"type\":\"price_update\",\"externalSku\":\"SKU-LATTE\",\"price\":5.25}]}"
+```
 
 ## Repo layout
 
@@ -128,10 +86,10 @@ Set `INLINE_SCHEDULER=false` when Celery Beat owns scheduling.
 digital-signage-saas/
 ├── frontend/
 ├── backend/
-│   ├── app/          # routes, auth, schemas
+│   ├── app/          # routes, auth, schemas, services
 │   ├── db/           # SQLAlchemy models
 │   ├── alembic/      # migrations
-│   └── workers/      # Celery tasks + Beat (Prompt 9)
+│   └── workers/      # Celery tasks + Beat
 ├── infra/
 │   └── docker-compose.yml
 ├── AGENTS.md

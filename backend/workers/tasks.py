@@ -42,3 +42,14 @@ def run_scheduler_tick_task() -> dict:
         "publishedViaRedis": via_redis,
         **stats,
     }
+
+
+@celery_app.task(name="workers.tasks.process_pos_webhook_task")
+def process_pos_webhook_task(event_id: str) -> dict:
+    from app.services.pos.apply import process_pos_sync_event
+    from db.sync_session import SyncSessionLocal
+
+    with SyncSessionLocal() as db:
+        result = process_pos_sync_event(db, event_id)
+    logger.info("process_pos_webhook_task %s -> %s", event_id, result)
+    return result

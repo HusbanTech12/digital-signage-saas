@@ -14,6 +14,7 @@ from db.models import (
     Menu,
     MenuItem,
     Organization,
+    PosIntegration,
     Screen,
     Template,
     Theme,
@@ -413,6 +414,33 @@ async def seed_demo_data(
             existing.location_ids = theme.location_ids
             existing.enabled = theme.enabled
 
+    pos = PosIntegration(
+        id="pos_square_downtown",
+        location_id="loc_downtown",
+        organization_id="org_demo_001",
+        provider="square",
+        credentials={"webhookSecret": "demo-pos-secret"},
+        config={
+            "menuId": "menu_all_day",
+            "itemMap": {
+                "SKU-LATTE": "item_latte",
+                "SKU-AVOCADO": "item_avocado",
+                "SKU-SOUP": "item_soup",
+            },
+        },
+        status="active",
+        created_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
+    )
+    existing_pos = await db.get(PosIntegration, pos.id)
+    if existing_pos is None:
+        db.add(pos)
+    else:
+        existing_pos.location_id = pos.location_id
+        existing_pos.provider = pos.provider
+        existing_pos.credentials = pos.credentials
+        existing_pos.config = pos.config
+        existing_pos.status = pos.status
+
     await db.commit()
     return {
         "ok": True,
@@ -421,6 +449,7 @@ async def seed_demo_data(
         "menus": ["menu_all_day", "menu_breakfast"],
         "templates": ["tpl_classic_board", "tpl_portrait_promo"],
         "themes": ["theme_breakfast", "theme_holiday"],
+        "posIntegrations": ["pos_square_downtown"],
         "devAuthUsers": [
             "user_clerk_super_demo",
             "user_clerk_admin_demo",

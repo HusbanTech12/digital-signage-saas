@@ -104,6 +104,51 @@ export interface Theme {
   createdAt: string;
 }
 
+export type PosProvider = "square" | "clear_mock";
+export type PosIntegrationStatus = "inactive" | "active" | "error";
+export type PosSyncEventStatus =
+  | "received"
+  | "processing"
+  | "applied"
+  | "failed";
+
+export interface PosIntegration {
+  id: string;
+  locationId: string;
+  organizationId: string;
+  provider: PosProvider | string;
+  status: PosIntegrationStatus | string;
+  config: {
+    menuId?: string;
+    itemMap?: Record<string, string>;
+    [key: string]: unknown;
+  };
+  hasCredentials: boolean;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+}
+
+export interface PosSyncEvent {
+  id: string;
+  integrationId: string;
+  organizationId: string;
+  eventType: string;
+  payload: Record<string, unknown>;
+  status: PosSyncEventStatus | string;
+  errorMessage: string | null;
+  createdAt: string;
+}
+
+export interface PosSyncStatus {
+  organizationId: string;
+  integrationsActive: number;
+  integrationsError: number;
+  lastSyncAt: string | null;
+  lastEventStatus: string | null;
+  recentFailures: number;
+}
+
 export interface User {
   id: string;
   clerkUserId: string;
