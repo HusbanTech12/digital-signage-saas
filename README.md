@@ -80,6 +80,33 @@ curl -X POST http://localhost:8000/api/v1/webhooks/pos/square/pos_square_downtow
   -d "{\"updates\":[{\"type\":\"price_update\",\"externalSku\":\"SKU-LATTE\",\"price\":5.25}]}"
 ```
 
+## Deploy backend on Railway
+
+Railpack failed because the repo root is a monorepo (`frontend/` + `backend/`). Point the Railway service at **`backend`**.
+
+1. Railway → your API service → **Settings**
+2. Set **Root Directory** to `backend` (required)
+3. Clear any custom start script that points to repo-root `start.sh`
+4. Redeploy
+
+This repo includes:
+- `backend/Dockerfile`
+- `backend/start.sh` (uvicorn on `$PORT`, optional Alembic)
+- `backend/railway.toml`
+
+### Required env vars (Railway)
+
+Copy from `backend/.env.example`, especially:
+
+- `DATABASE_URL` (Supabase / Postgres async URL, `postgresql+asyncpg://…`)
+- `CLERK_JWKS_URL` or `CLERK_FRONTEND_API`
+- `REDIS_URL` (Railway Redis plugin recommended)
+- `CORS_ORIGINS` (your frontend URL, e.g. `https://your-app.vercel.app`)
+- `APP_ENV=production`
+- `DEV_AUTH_BYPASS=false`
+
+Health check: `GET /health`
+
 ## Repo layout
 
 ```
