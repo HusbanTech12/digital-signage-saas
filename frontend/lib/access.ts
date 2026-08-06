@@ -40,6 +40,10 @@ export function canManageTemplates(role: Role) {
   return role === "super_admin" || role === "admin";
 }
 
+export function canManageThemes(role: Role) {
+  return role === "super_admin" || role === "admin";
+}
+
 /** Open / edit designer canvas (includes Location Manager for publish flow). */
 export function canEditDesigner(role: Role) {
   return canManageMenus(role);

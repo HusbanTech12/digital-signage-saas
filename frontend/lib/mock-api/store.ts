@@ -10,6 +10,7 @@ import {
   organizations as seedOrganizations,
   screens as seedScreens,
   templates as seedTemplates,
+  themes as seedThemes,
 } from "@/lib/mock-data";
 import { createBlankCanvasJson } from "@/lib/designer/canvas-io";
 import type {
@@ -21,6 +22,8 @@ import type {
   Screen,
   ScreenOrientation,
   Template,
+  Theme,
+  ThemeRuleKind,
 } from "@/lib/types/schema";
 
 type Listener = () => void;
@@ -52,12 +55,20 @@ function cloneTemplates() {
   }));
 }
 
+function cloneThemes() {
+  return seedThemes.map((t) => ({
+    ...t,
+    locationIds: [...t.locationIds],
+  }));
+}
+
 let organizationsState: Organization[] = cloneOrganizations();
 let locationsState: Location[] = cloneLocations();
 let screensState: Screen[] = cloneScreens();
 let menusState: Menu[] = cloneMenus();
 let menuItemsState: MenuItem[] = cloneMenuItems();
 let templatesState: Template[] = cloneTemplates();
+let themesState: Theme[] = cloneThemes();
 let pendingPairings: PendingPairing[] = [];
 
 const listeners = new Set<Listener>();
@@ -69,6 +80,7 @@ export type MockStoreSnapshot = {
   menus: Menu[];
   menuItems: MenuItem[];
   templates: Template[];
+  themes: Theme[];
   pendingPairings: PendingPairing[];
 };
 
@@ -80,6 +92,7 @@ let snapshot: MockStoreSnapshot = {
   menus: menusState,
   menuItems: menuItemsState,
   templates: templatesState,
+  themes: themesState,
   pendingPairings,
 };
 
@@ -91,6 +104,7 @@ function rebuildSnapshot() {
     menus: menusState,
     menuItems: menuItemsState,
     templates: templatesState,
+    themes: themesState,
     pendingPairings,
   };
 }
@@ -547,6 +561,7 @@ export function hydrateTenantData(input: {
   menus?: Menu[];
   menuItems?: MenuItem[];
   templates?: Template[];
+  themes?: Theme[];
 }) {
   if (input.organizations) {
     organizationsState = input.organizations.map((o) => ({ ...o }));
@@ -569,7 +584,103 @@ export function hydrateTenantData(input: {
       canvasJson: structuredClone(t.canvasJson),
     }));
   }
+  if (input.themes) {
+    themesState = input.themes.map((t) => ({
+      ...t,
+      locationIds: [...t.locationIds],
+    }));
+  }
   emit();
+}
+
+export function upsertTheme(theme: Theme) {
+  const idx = themesState.findIndex((t) => t.id === theme.id);
+  if (idx === -1) {
+    themesState = [...themesState, { ...theme, locationIds: [...theme.locationIds] }];
+  } else {
+    themesState = themesState.map((t) =>
+      t.id === theme.id
+        ? { ...theme, locationIds: [...theme.locationIds] }
+        : t,
+    );
+  }
+  emit();
+}
+
+export function removeThemeLocal(themeId: string) {
+  themesState = themesState.filter((t) => t.id !== themeId);
+  emit();
+}
+
+export function createTheme(input: {
+  organizationId: string;
+  name: string;
+  kind: ThemeRuleKind;
+  startTime: string | null;
+  endTime: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  menuId: string;
+  templateId: string;
+  locationIds: string[];
+  enabled: boolean;
+}): Theme {
+  const theme: Theme = {
+    id: id("theme"),
+    organizationId: input.organizationId,
+    name: input.name.trim(),
+    kind: input.kind,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    menuId: input.menuId,
+    templateId: input.templateId,
+    locationIds: [...input.locationIds],
+    enabled: input.enabled,
+    createdAt: nowIso(),
+  };
+  themesState = [...themesState, theme];
+  emit();
+  return theme;
+}
+
+export function updateTheme(
+  themeId: string,
+  patch: Partial<
+    Pick<
+      Theme,
+      | "name"
+      | "kind"
+      | "startTime"
+      | "endTime"
+      | "startDate"
+      | "endDate"
+      | "menuId"
+      | "templateId"
+      | "locationIds"
+      | "enabled"
+    >
+  >,
+): Theme {
+  const existing = themesState.find((t) => t.id === themeId);
+  if (!existing) throw new Error("Theme not found");
+  const next: Theme = {
+    ...existing,
+    ...patch,
+    locationIds: patch.locationIds
+      ? [...patch.locationIds]
+      : [...existing.locationIds],
+  };
+  themesState = themesState.map((t) => (t.id === themeId ? next : t));
+  emit();
+  return next;
+}
+
+export function deleteTheme(themeId: string) {
+  const exists = themesState.some((t) => t.id === themeId);
+  if (!exists) throw new Error("Theme not found");
+  removeThemeLocal(themeId);
 }
 
 export function upsertOrganization(org: Organization) {

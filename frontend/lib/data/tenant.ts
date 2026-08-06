@@ -23,6 +23,7 @@ import {
   listMenusApi,
   listTemplatesApi,
 } from "@/lib/api/menus";
+import { listThemesApi } from "@/lib/api/themes";
 import { DEFAULT_ORGANIZATION_ID, useLiveApi } from "@/lib/api/config";
 import {
   completePairing as completePairingMock,
@@ -66,13 +67,15 @@ export async function ensureProvisioned(token: Token) {
 
 export async function refreshTenantFromApi(token: Token) {
   const organization = await ensureProvisioned(token);
-  const [locations, screens, menus, menuItems, templates] = await Promise.all([
-    listLocations(token),
-    listScreens(token),
-    listMenusApi(token),
-    listMenuItemsApi(token),
-    listTemplatesApi(token),
-  ]);
+  const [locations, screens, menus, menuItems, templates, themes] =
+    await Promise.all([
+      listLocations(token),
+      listScreens(token),
+      listMenusApi(token),
+      listMenuItemsApi(token),
+      listTemplatesApi(token),
+      listThemesApi(token).catch(() => []),
+    ]);
   hydrateTenantData({
     organizations: [organization],
     locations,
@@ -80,8 +83,24 @@ export async function refreshTenantFromApi(token: Token) {
     menus,
     menuItems,
     templates,
+    themes,
   });
-  return { organization, locations, screens, menus, menuItems, templates };
+  return {
+    organization,
+    locations,
+    screens,
+    menus,
+    menuItems,
+    templates,
+    themes,
+  };
+}
+
+/** Lightweight poll so dashboard online/offline status stays fresh. */
+export async function refreshScreensFromApi(token: Token) {
+  const screens = await listScreens(token);
+  hydrateTenantData({ screens });
+  return screens;
 }
 
 export async function updateOrganization(

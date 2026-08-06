@@ -100,6 +100,28 @@ Publish (`POST /api/v1/menus/publish`) writes screen assignments, then fans out 
 - Without Redis, a single uvicorn worker still pushes in-process (fine for local demo).
 - Start Redis locally: `cd infra && docker compose up -d redis`
 
+### Theme scheduling + offline detection (Prompt 9)
+
+| Method | Path | Auth |
+|---|---|---|
+| GET/POST | `/api/v1/themes` | Clerk / admin roles |
+| PATCH/DELETE | `/api/v1/themes/{id}` | Clerk / admin roles |
+| POST | `/api/v1/themes/apply-now` | Clerk / admin roles |
+
+- Time-of-day and date-range themes auto-switch `active_menu_id` / `active_template_id` (location timezone).
+- Date-range wins over time-of-day when both match.
+- Stale heartbeats mark screens `online` → `offline` after `SCREEN_OFFLINE_AFTER_SECONDS` (default 60).
+- Dashboard Themes page + Screens status poll every 20s.
+- Uvicorn runs an inline scheduler every 30s by default. Production-style:
+
+```bash
+cd backend
+celery -A workers.celery_app worker --loglevel=info
+celery -A workers.celery_app beat --loglevel=info
+```
+
+Set `INLINE_SCHEDULER=false` when Celery Beat owns scheduling.
+
 ## Repo layout
 
 ```
@@ -109,7 +131,7 @@ digital-signage-saas/
 │   ├── app/          # routes, auth, schemas
 │   ├── db/           # SQLAlchemy models
 │   ├── alembic/      # migrations
-│   └── workers/      # Celery (later)
+│   └── workers/      # Celery tasks + Beat (Prompt 9)
 ├── infra/
 │   └── docker-compose.yml
 ├── AGENTS.md

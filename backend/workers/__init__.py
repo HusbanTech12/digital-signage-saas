@@ -1,1 +1,1 @@
-"""Celery workers package (tasks land in Prompt 9+)."""
+"""Celery workers package (Prompt 9+: themes + offline sweeps)."""

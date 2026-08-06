@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useApiAuthToken } from "@/lib/api/auth-token";
-import { refreshTenantFromApi } from "@/lib/data/tenant";
+import {
+  refreshScreensFromApi,
+  refreshTenantFromApi,
+} from "@/lib/data/tenant";
+
+const SCREEN_POLL_MS = 20_000;
 
 /**
  * When the live API is enabled, hydrate org/locations/screens from FastAPI
@@ -47,6 +52,26 @@ export function TenantSync({ children }: { children: React.ReactNode }) {
     };
   }, [useLiveApi, getApiToken]);
 
+  // Poll screen status so offline/online from heartbeat jobs appears live.
+  useEffect(() => {
+    if (!useLiveApi || !ready) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const token = await getApiToken();
+        if (!token || cancelled) return;
+        await refreshScreensFromApi(token);
+      } catch {
+        /* keep last known status */
+      }
+    };
+    const id = window.setInterval(() => void tick(), SCREEN_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [useLiveApi, ready, getApiToken]);
+
   return (
     <>
       {error ? (
@@ -56,7 +81,9 @@ export function TenantSync({ children }: { children: React.ReactNode }) {
           onboard via POST /api/v1/me/onboard.
         </div>
       ) : null}
-      {ready ? children : (
+      {ready ? (
+        children
+      ) : (
         <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
           Loading organization data…
         </div>

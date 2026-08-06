@@ -1,7 +1,7 @@
 """Development-only seed endpoint matching frontend mock-data.ts."""
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,7 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from db.models import Location, Menu, MenuItem, Organization, Screen, Template, User
+from db.models import (
+    Location,
+    Menu,
+    MenuItem,
+    Organization,
+    Screen,
+    Template,
+    Theme,
+    User,
+)
 from db.session import get_db
 
 router = APIRouter(prefix="/api/v1/dev", tags=["dev"])
@@ -257,7 +266,7 @@ async def seed_demo_data(
             name="Lobby Left",
             device_token="devtok_lobby_left_demo",
             pairing_code=None,
-            last_heartbeat=datetime(2026, 8, 1, 18, 55, tzinfo=timezone.utc),
+            last_heartbeat=datetime.now(timezone.utc),
             resolution="1920x1080",
             orientation="landscape",
             status="online",
@@ -357,6 +366,53 @@ async def seed_demo_data(
             existing.role = u.role
             existing.location_ids = u.location_ids
 
+    for theme in (
+        Theme(
+            id="theme_breakfast",
+            organization_id="org_demo_001",
+            name="Breakfast Window",
+            kind="time_of_day",
+            start_time=time(6, 0),
+            end_time=time(11, 0),
+            start_date=None,
+            end_date=None,
+            menu_id="menu_breakfast",
+            template_id="tpl_classic_board",
+            location_ids=["loc_downtown"],
+            enabled=True,
+            created_at=datetime(2026, 3, 5, tzinfo=timezone.utc),
+        ),
+        Theme(
+            id="theme_holiday",
+            organization_id="org_demo_001",
+            name="Holiday Season",
+            kind="date_range",
+            start_time=None,
+            end_time=None,
+            start_date=date(2026, 12, 1),
+            end_date=date(2026, 12, 31),
+            menu_id="menu_all_day",
+            template_id="tpl_portrait_promo",
+            location_ids=["loc_downtown", "loc_airport"],
+            enabled=False,
+            created_at=datetime(2026, 6, 1, tzinfo=timezone.utc),
+        ),
+    ):
+        existing = await db.get(Theme, theme.id)
+        if existing is None:
+            db.add(theme)
+        else:
+            existing.name = theme.name
+            existing.kind = theme.kind
+            existing.start_time = theme.start_time
+            existing.end_time = theme.end_time
+            existing.start_date = theme.start_date
+            existing.end_date = theme.end_date
+            existing.menu_id = theme.menu_id
+            existing.template_id = theme.template_id
+            existing.location_ids = theme.location_ids
+            existing.enabled = theme.enabled
+
     await db.commit()
     return {
         "ok": True,
@@ -364,6 +420,7 @@ async def seed_demo_data(
         "demoPairingCode": "482917",
         "menus": ["menu_all_day", "menu_breakfast"],
         "templates": ["tpl_classic_board", "tpl_portrait_promo"],
+        "themes": ["theme_breakfast", "theme_holiday"],
         "devAuthUsers": [
             "user_clerk_super_demo",
             "user_clerk_admin_demo",

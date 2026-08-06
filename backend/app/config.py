@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     # so the dashboard role switcher can hit real APIs without a Clerk JWT.
     dev_auth_bypass: bool = True
 
+    # Prompt 9 — mark online screens offline after missed heartbeats
+    screen_offline_after_seconds: int = 60
+
+    # Run theme + offline ticks inside the API process (handy without Celery)
+    inline_scheduler: bool = True
+    inline_scheduler_interval_seconds: int = 30
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -48,6 +55,21 @@ class Settings(BaseSettings):
     @property
     def alembic_database_url(self) -> str:
         return self.database_url_sync or self.async_database_url
+
+    @property
+    def sync_database_url(self) -> str:
+        """Sync SQLAlchemy URL for Celery workers (psycopg)."""
+        if self.database_url_sync:
+            url = self.database_url_sync
+        else:
+            url = self.database_url
+        if url.startswith("postgresql+asyncpg://"):
+            return url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+psycopg://", 1)
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+psycopg://", 1)
+        return url
 
     @property
     def uses_supabase_pooler(self) -> bool:
