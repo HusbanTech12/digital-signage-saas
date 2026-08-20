@@ -127,6 +127,7 @@ async def duplicate_template(
         thumbnail_url=None,
         is_global=False,
         canvas_json=deepcopy(source.canvas_json or {}),
+        display_config=deepcopy(source.display_config or {}),
         created_at=now,
         updated_at=now,
     )
@@ -170,6 +171,8 @@ async def update_template(
         template.description = body.description.strip()
     if body.canvas_json is not None:
         template.canvas_json = deepcopy(body.canvas_json)
+    if body.display_config is not None:
+        template.display_config = deepcopy(body.display_config)
 
     template.updated_at = _utcnow()
     await db.commit()

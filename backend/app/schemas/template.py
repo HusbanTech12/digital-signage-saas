@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Any
 
-from app.schemas.common import CamelModel
+from pydantic import Field, field_validator
 
+from app.schemas.common import CamelModel
 
 class TemplateOut(CamelModel):
     id: str
@@ -12,8 +13,14 @@ class TemplateOut(CamelModel):
     thumbnail_url: str | None
     is_global: bool
     canvas_json: dict[str, Any]
+    display_config: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("display_config", mode="before")
+    @classmethod
+    def coerce_display_config(cls, value: object) -> dict[str, Any]:
+        return value if isinstance(value, dict) else {}
 
 
 class TemplateCreate(CamelModel):
@@ -26,6 +33,7 @@ class TemplateUpdate(CamelModel):
     name: str | None = None
     description: str | None = None
     canvas_json: dict[str, Any] | None = None
+    display_config: dict[str, Any] | None = None
 
 
 class TemplateDuplicateIn(CamelModel):

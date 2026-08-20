@@ -19,6 +19,7 @@ class DisplayPayloadOut(CamelModel):
     template_id: str | None
     template_name: str | None
     canvas_json: dict[str, Any] | None
+    display_config: dict[str, Any] | None = None
     items: list[MenuItemOut]
     updated_at: datetime
 

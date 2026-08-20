@@ -80,7 +80,60 @@ curl -X POST http://localhost:8000/api/v1/webhooks/pos/square/pos_square_downtow
   -d "{\"updates\":[{\"type\":\"price_update\",\"externalSku\":\"SKU-LATTE\",\"price\":5.25}]}"
 ```
 
-## Deploy backend on Railway
+## Deploy on Vercel (frontend + API)
+
+Monorepo: create **two** Vercel projects (or one frontend project + keep API elsewhere).
+
+### Frontend (Next.js)
+
+1. Import the Git repo → **Root Directory** = `frontend`
+2. Framework: Next.js (auto)
+3. Env vars (Production): from `frontend/.env.example` / `.env.local`
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
+   - `NEXT_PUBLIC_API_URL` = your API URL (e.g. `https://digital-signage-api.vercel.app`)
+   - `NEXT_PUBLIC_USE_MOCK_API=false`
+4. Deploy
+
+CLI (from repo root, after `npx vercel login`):
+
+```bash
+cd frontend
+npx vercel link --yes --project digital-signage-web --scope <team-slug>
+npx vercel --prod --yes
+```
+
+Current production project: `digital-signage-web` → https://digital-signage-web-rho.vercel.app
+
+### Backend (FastAPI on Vercel)
+
+1. Second Vercel project → **Root Directory** = `backend`
+2. Framework: FastAPI / Python (`app.main:app` via `pyproject.toml` `[tool.vercel]`)
+3. Dependencies: keep **`pyproject.toml` `[project].dependencies`** in sync with `requirements.txt` (Vercel installs from `pyproject.toml` when present)
+4. Env vars: from `backend/.env.example`
+   - `DATABASE_URL` (`postgresql+asyncpg://…`)
+   - `CLERK_JWKS_URL` or `CLERK_FRONTEND_API`
+   - `CORS_ORIGINS` = frontend URL(s), comma-separated
+   - `APP_ENV=production`
+   - `DEV_AUTH_BYPASS=false`
+   - `INLINE_SCHEDULER=false` (recommended on serverless)
+   - `REDIS_URL` optional (WebSockets / Celery are limited on Vercel)
+
+CLI:
+
+```bash
+cd backend
+npx vercel link --yes --project digital-signage-api --scope <team-slug>
+npx vercel --prod --yes
+```
+
+Current production project: `digital-signage-api` → https://digital-signage-api-pi.vercel.app  
+Health: `GET /health` → `{"status":"ok",...}`
+
+**Limits on Vercel Functions:** durable WebSockets, Celery Beat, and Redis pub/sub relays are unreliable. Kiosk HTTP polling still works. For always-on WS + workers, prefer Railway for the API and Vercel only for the frontend.
+
+Also add the frontend URL in the **Clerk Dashboard → Allowed origins / redirect URLs**.
+
+## Deploy backend on Railway (optional / realtime)
 
 Railpack failed because the repo root is a monorepo (`frontend/` + `backend/`). Point the Railway service at **`backend`**.
 
@@ -96,14 +149,7 @@ This repo includes:
 
 ### Required env vars (Railway)
 
-Copy from `backend/.env.example`, especially:
-
-- `DATABASE_URL` (Supabase / Postgres async URL, `postgresql+asyncpg://…`)
-- `CLERK_JWKS_URL` or `CLERK_FRONTEND_API`
-- `REDIS_URL` (Railway Redis plugin recommended)
-- `CORS_ORIGINS` (your frontend URL, e.g. `https://your-app.vercel.app`)
-- `APP_ENV=production`
-- `DEV_AUTH_BYPASS=false`
+Same as the Vercel backend list above; also set `REDIS_URL` (Railway Redis plugin recommended).
 
 Health check: `GET /health`
 

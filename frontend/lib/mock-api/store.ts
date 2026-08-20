@@ -13,6 +13,7 @@ import {
   themes as seedThemes,
 } from "@/lib/mock-data";
 import { createBlankCanvasJson } from "@/lib/designer/canvas-io";
+import { DEFAULT_MENU_DISPLAY_CONFIG } from "@/lib/display/menu-board-theme";
 import type {
   Location,
   Menu,
@@ -446,6 +447,7 @@ export function createTemplate(input: {
     thumbnailUrl: null,
     isGlobal: false,
     canvasJson: createBlankCanvasJson(),
+    displayConfig: { ...DEFAULT_MENU_DISPLAY_CONFIG },
     createdAt: ts,
     updatedAt: ts,
   };
@@ -456,12 +458,13 @@ export function createTemplate(input: {
 
 export function updateTemplate(
   templateId: string,
-  patch: Partial<Pick<Template, "name" | "description" | "canvasJson">>,
+  patch: Partial<
+    Pick<Template, "name" | "description" | "canvasJson" | "displayConfig">
+  >,
 ): Template {
   const template = templatesState.find((t) => t.id === templateId);
   if (!template) throw new Error("Template not found");
-  if (template.isGlobal && patch.canvasJson) {
-    // Org users edit a forked copy instead of mutating the global seed.
+  if (template.isGlobal && (patch.canvasJson || patch.displayConfig)) {
     throw new Error("Global templates are read-only. Duplicate to edit.");
   }
   if (patch.name !== undefined) template.name = patch.name.trim();
@@ -471,11 +474,17 @@ export function updateTemplate(
   if (patch.canvasJson !== undefined) {
     template.canvasJson = structuredClone(patch.canvasJson);
   }
+  if (patch.displayConfig !== undefined) {
+    template.displayConfig = structuredClone(patch.displayConfig);
+  }
   template.updatedAt = nowIso();
   emit();
   return {
     ...template,
     canvasJson: structuredClone(template.canvasJson),
+    displayConfig: template.displayConfig
+      ? structuredClone(template.displayConfig)
+      : template.displayConfig,
   };
 }
 
@@ -495,6 +504,9 @@ export function duplicateTemplate(input: {
     thumbnailUrl: null,
     isGlobal: false,
     canvasJson: structuredClone(source.canvasJson),
+    displayConfig: source.displayConfig
+      ? structuredClone(source.displayConfig)
+      : undefined,
     createdAt: ts,
     updatedAt: ts,
   };

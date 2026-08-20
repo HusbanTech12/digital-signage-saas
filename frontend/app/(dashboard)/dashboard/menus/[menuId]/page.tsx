@@ -22,7 +22,8 @@ import {
   updateMenu,
   updateMenuItem,
 } from "@/lib/data/menus";
-import type { MenuItem } from "@/lib/types/schema";
+import { DEFAULT_MENU_DISPLAY_CONFIG } from "@/lib/display/menu-board-theme";
+import type { MenuItem, Template } from "@/lib/types/schema";
 
 export default function MenuDetailPage() {
   const params = useParams<{ menuId: string }>();
@@ -48,6 +49,11 @@ export default function MenuDetailPage() {
     (t) => t.isGlobal || t.organizationId === session.organization.id,
   );
   const visibleScreens = filterScreensForUser(screens, session.user);
+
+  const columnCategories = useMemo(
+    () => collectColumnCategories(orgTemplates, items),
+    [orgTemplates, items],
+  );
 
   if (!canManageMenus(role)) {
     return (
@@ -143,7 +149,7 @@ export default function MenuDetailPage() {
           <thead className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Category</th>
+              <th className="px-4 py-3 font-medium">Column category</th>
               <th className="px-4 py-3 font-medium">Price</th>
               <th className="px-4 py-3 font-medium">Available</th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
@@ -226,6 +232,7 @@ export default function MenuDetailPage() {
           organizationId={session.organization.id}
           menuId={menu.id}
           item={itemForm === "new" ? null : itemForm}
+          columnCategories={columnCategories}
           getApiToken={getApiToken}
           onClose={() => setItemForm(null)}
         />
@@ -242,22 +249,63 @@ export default function MenuDetailPage() {
   );
 }
 
+function collectColumnCategories(
+  templates: Template[],
+  items: MenuItem[],
+): string[] {
+  const categories = new Set<string>();
+
+  for (const template of templates) {
+    if (template.displayConfig?.layout === "premium") {
+      for (const name of template.displayConfig.categories ?? []) {
+        if (name.trim()) categories.add(name.trim());
+      }
+    }
+  }
+
+  if (categories.size === 0) {
+    for (const name of DEFAULT_MENU_DISPLAY_CONFIG.categories) {
+      categories.add(name);
+    }
+  }
+
+  for (const item of items) {
+    if (item.category.trim()) categories.add(item.category.trim());
+  }
+
+  return [...categories];
+}
+
 function ItemFormDialog({
   organizationId,
   menuId,
   item,
+  columnCategories,
   getApiToken,
   onClose,
 }: {
   organizationId: string;
   menuId: string;
   item: MenuItem | null;
+  columnCategories: string[];
   getApiToken: () => Promise<string | null>;
   onClose: () => void;
 }) {
+  const defaultSelect =
+    item && columnCategories.includes(item.category)
+      ? item.category
+      : item
+        ? "__custom__"
+        : (columnCategories[0] ??
+          DEFAULT_MENU_DISPLAY_CONFIG.categories[0] ??
+          "General");
+
   const [name, setName] = useState(item?.name ?? "");
   const [price, setPrice] = useState(String(item?.price ?? "0"));
-  const [category, setCategory] = useState(item?.category ?? "General");
+  const [categorySelect, setCategorySelect] = useState(defaultSelect);
+  const [customCategory, setCustomCategory] = useState(
+    item && !columnCategories.includes(item.category) ? item.category : "",
+  );
   const [description, setDescription] = useState(item?.description ?? "");
   const [available, setAvailable] = useState(item?.available ?? true);
   const [error, setError] = useState<string | null>(null);
@@ -272,6 +320,13 @@ function ItemFormDialog({
       if (Number.isNaN(parsed) || parsed < 0) {
         throw new Error("Enter a valid price.");
       }
+      const resolvedCategory =
+        categorySelect === "__custom__"
+          ? customCategory.trim()
+          : categorySelect.trim();
+      if (!resolvedCategory) {
+        throw new Error("Select or enter a column category.");
+      }
       const token = await getApiToken();
       if (item) {
         await updateMenuItem(
@@ -279,7 +334,7 @@ function ItemFormDialog({
           {
             name,
             price: parsed,
-            category,
+            category: resolvedCategory,
             description,
             available,
           },
@@ -292,7 +347,7 @@ function ItemFormDialog({
             organizationId,
             name,
             price: parsed,
-            category,
+            category: resolvedCategory,
             description,
             available,
           },
@@ -345,13 +400,33 @@ function ItemFormDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="item-cat">Category</Label>
-            <Input
+            <Label htmlFor="item-cat">Column category</Label>
+            <select
               id="item-cat"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              required
-            />
+              value={categorySelect}
+              onChange={(e) => setCategorySelect(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              required={categorySelect !== "__custom__"}
+            >
+              {columnCategories.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+              <option value="__custom__">Other…</option>
+            </select>
+            {categorySelect === "__custom__" ? (
+              <Input
+                id="item-cat-custom"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="Custom category"
+                required
+              />
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Maps the item to a TV board column when using a premium template.
+            </p>
           </div>
         </div>
         <div className="space-y-1.5">

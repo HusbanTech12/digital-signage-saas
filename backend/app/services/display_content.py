@@ -49,7 +49,7 @@ async def build_display_payload(
     if menu is not None:
         result = await db.execute(
             select(MenuItem)
-            .where(MenuItem.menu_id == menu.id, MenuItem.available.is_(True))
+            .where(MenuItem.menu_id == menu.id)
             .order_by(MenuItem.sort_order, MenuItem.name)
         )
         items = [_item_out(i) for i in result.scalars().all()]
@@ -57,6 +57,10 @@ async def build_display_payload(
     canvas = None
     if template is not None and isinstance(template.canvas_json, dict):
         canvas = template.canvas_json
+
+    display_config = None
+    if template is not None and isinstance(template.display_config, dict):
+        display_config = template.display_config or None
 
     return DisplayPayloadOut(
         screen_id=screen.id,
@@ -70,6 +74,7 @@ async def build_display_payload(
         template_id=template.id if template else None,
         template_name=template.name if template else None,
         canvas_json=canvas,
+        display_config=display_config,
         items=items,
         updated_at=_utcnow(),
     )

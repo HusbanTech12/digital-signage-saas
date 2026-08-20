@@ -1,4 +1,5 @@
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
+import type { MenuDisplayConfig } from "@/lib/display/menu-board-theme";
 import type { MenuItem, ScreenOrientation } from "@/lib/types/schema";
 
 /** Snapshot pushed to the kiosk (and cached in IndexedDB). */
@@ -14,6 +15,7 @@ export interface DisplayPayload {
   templateId: string | null;
   templateName: string | null;
   canvasJson: DesignerCanvasJson | null;
+  displayConfig: Partial<MenuDisplayConfig> | null;
   items: MenuItem[];
   updatedAt: string;
 }

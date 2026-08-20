@@ -51,6 +51,12 @@ async def _inline_scheduler_loop(stop: asyncio.Event) -> None:
             pass
 
 
+def _running_on_vercel() -> bool:
+    import os
+
+    return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     settings = get_settings()
@@ -58,7 +64,9 @@ async def lifespan(_app: FastAPI):
     await hub.start()
     stop = asyncio.Event()
     scheduler_task: asyncio.Task[None] | None = None
-    if settings.inline_scheduler:
+    # Vercel Functions are request-scoped — background Beat loops are unreliable.
+    use_inline = settings.inline_scheduler and not _running_on_vercel()
+    if use_inline:
         scheduler_task = asyncio.create_task(
             _inline_scheduler_loop(stop), name="inline-scheduler"
         )
@@ -66,6 +74,10 @@ async def lifespan(_app: FastAPI):
             "Inline scheduler enabled (interval=%ss, offline_after=%ss)",
             settings.inline_scheduler_interval_seconds,
             settings.screen_offline_after_seconds,
+        )
+    elif _running_on_vercel():
+        logger.info(
+            "Vercel detected — inline scheduler off; use /themes/apply-now or external cron"
         )
     try:
         yield
@@ -87,6 +99,8 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
+        # Cover Vercel production + preview aliases for the web project
+        allow_origin_regex=r"https://digital-signage-web(-[a-z0-9-]+)?\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

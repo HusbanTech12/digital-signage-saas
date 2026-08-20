@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { MenuDesigner } from "@/components/designer/menu-designer";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PublishMenuDialog } from "@/components/dashboard/publish-menu-dialog";
+import { TemplateLayoutSettings } from "@/components/dashboard/template-layout-settings";
 import { useMockSession } from "@/components/providers/mock-session-provider";
 import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import {
   filterScreensForUser,
 } from "@/lib/access";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
+import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 import { useApiAuthToken } from "@/lib/api/auth-token";
 import { updateTemplate } from "@/lib/data/menus";
 
@@ -67,6 +69,7 @@ function TemplateEditPageInner() {
     (t) => t.isGlobal || t.organizationId === session.organization.id,
   );
   const visibleScreens = filterScreensForUser(screens, session.user);
+  const isPremium = template?.displayConfig?.layout === "premium";
 
   if (!canEditDesigner(role)) {
     return (
@@ -92,7 +95,7 @@ function TemplateEditPageInner() {
       <div className="mx-auto max-w-5xl space-y-4">
         <PageHeader
           title="Read-only global template"
-          description="Duplicate this template from the gallery to customize it."
+          description="Duplicate this template from the gallery to customize the TV layout."
         />
         <Button variant="outline" render={<Link href="/dashboard/templates" />}>
           Back to gallery
@@ -101,7 +104,7 @@ function TemplateEditPageInner() {
     );
   }
 
-  async function handleSave(json: DesignerCanvasJson) {
+  async function handleSaveCanvas(json: DesignerCanvasJson) {
     setSaving(true);
     setStatus(null);
     try {
@@ -115,14 +118,29 @@ function TemplateEditPageInner() {
     }
   }
 
+  async function handleSaveDisplayConfig(
+    config: ReturnType<typeof mergeDisplayConfig>,
+  ) {
+    setStatus(null);
+    try {
+      const token = await getApiToken();
+      await updateTemplate(template!.id, { displayConfig: config }, token);
+      setStatus("Layout saved");
+    } catch (err) {
+      throw err;
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
-        title={`Designer · ${template.name}`}
+        title={`Template · ${template.name}`}
         description={
           menu
-            ? `Editing layout for menu “${menu.name}”. Drag items onto the board, save, then publish.`
-            : "Drag-and-drop Fabric.js editor. Save persists the template canvas."
+            ? `Editing TV layout for menu “${menu.name}”. Save, then publish to screens.`
+            : isPremium
+              ? "Premium 3-column TV board — branding and columns are saved on this template."
+              : "Drag-and-drop canvas editor. Save persists the template layout."
         }
         actions={
           <>
@@ -139,17 +157,33 @@ function TemplateEditPageInner() {
         }
       />
 
-      <MenuDesigner
-        key={template.id}
-        initialJson={template.canvasJson as DesignerCanvasJson}
-        menuItems={items}
-        onSave={handleSave}
-        onPublish={
-          menu && canPublishMenus(role) ? () => setPublishOpen(true) : undefined
-        }
-        saving={saving}
-        statusMessage={status}
-      />
+      {status ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {status}
+        </p>
+      ) : null}
+
+      {isPremium ? (
+        <TemplateLayoutSettings
+          config={template.displayConfig}
+          items={items}
+          onSave={handleSaveDisplayConfig}
+        />
+      ) : (
+        <MenuDesigner
+          key={template.id}
+          initialJson={template.canvasJson as DesignerCanvasJson}
+          menuItems={items}
+          onSave={handleSaveCanvas}
+          onPublish={
+            menu && canPublishMenus(role)
+              ? () => setPublishOpen(true)
+              : undefined
+          }
+          saving={saving}
+          statusMessage={status}
+        />
+      )}
 
       {menu ? (
         <PublishMenuDialog

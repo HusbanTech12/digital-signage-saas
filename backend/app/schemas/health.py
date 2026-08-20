@@ -7,3 +7,4 @@ class HealthResponse(BaseModel):
     status: str
     app: str
     env: str
+    database: str = "unknown"

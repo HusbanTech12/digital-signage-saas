@@ -34,7 +34,7 @@ export function resolveDisplayPayloadMock(
 
   const items = menu
     ? menuItems
-        .filter((i) => i.menuId === menu.id && i.available)
+        .filter((i) => i.menuId === menu.id)
         .sort((a, b) => a.sortOrder - b.sortOrder)
     : [];
 
@@ -52,6 +52,7 @@ export function resolveDisplayPayloadMock(
     canvasJson: template
       ? (structuredClone(template.canvasJson) as DisplayPayload["canvasJson"])
       : null,
+    displayConfig: template?.displayConfig ?? null,
     items,
     updatedAt: new Date().toISOString(),
   };

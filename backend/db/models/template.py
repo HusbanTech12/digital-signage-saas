@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -22,6 +23,9 @@ class Template(Base):
     thumbnail_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_global: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     canvas_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    display_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

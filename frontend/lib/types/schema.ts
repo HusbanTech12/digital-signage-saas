@@ -80,6 +80,7 @@ export interface Template {
   thumbnailUrl: string | null;
   isGlobal: boolean;
   canvasJson: Record<string, unknown>;
+  displayConfig?: import("@/lib/display/menu-board-theme").MenuDisplayConfig | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { useMockSession } from "@/components/providers/mock-session-provider";
 import { useMockStore } from "@/components/providers/mock-data-provider";
@@ -16,6 +17,7 @@ import {
   deleteTemplate,
   duplicateTemplate,
 } from "@/lib/data/menus";
+import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 
 export default function TemplatesPage() {
   return (
@@ -36,10 +38,18 @@ function TemplatesPageInner() {
   const searchParams = useSearchParams();
   const menuId = searchParams.get("menuId");
   const { session, role } = useMockSession();
-  const { templates } = useMockStore();
+  const { templates, menuItems } = useMockStore();
   const { getApiToken } = useApiAuthToken();
   const [createOpen, setCreateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const previewItems = useMemo(
+    () =>
+      menuItems
+        .filter((i) => i.organizationId === session.organization.id)
+        .slice(0, 12),
+    [menuItems, session.organization.id],
+  );
 
   const gallery = useMemo(
     () =>
@@ -104,13 +114,34 @@ function TemplatesPageInner() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {gallery.map((template) => (
+        {gallery.map((template) => {
+          const isPremium = template.displayConfig?.layout === "premium";
+          const previewConfig = isPremium
+            ? mergeDisplayConfig(template.displayConfig)
+            : null;
+
+          return (
           <article
             key={template.id}
             className="flex flex-col rounded-xl border border-border p-4"
           >
-            <div className="flex aspect-video items-center justify-center rounded-lg bg-zinc-900 text-xs text-zinc-400">
-              {template.isGlobal ? "Global library" : "Org template"}
+            <div className="relative aspect-video overflow-hidden rounded-lg bg-zinc-900">
+              {isPremium && previewConfig ? (
+                <div
+                  className="pointer-events-none origin-top-left scale-[0.22]"
+                  style={{ width: "454.55%", height: "454.55%" }}
+                >
+                  <PremiumMenuBoard
+                    items={previewItems}
+                    config={previewConfig}
+                    statusLabel="Preview"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center text-xs text-zinc-400">
+                  {template.isGlobal ? "Global library" : "Canvas layout"}
+                </div>
+              )}
             </div>
             <h2 className="mt-3 font-semibold tracking-tight">
               {template.name}
@@ -149,7 +180,8 @@ function TemplatesPageInner() {
 
             </div>
           </article>
-        ))}
+          );
+        })}
       </div>
 
       {createOpen ? (

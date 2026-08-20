@@ -35,13 +35,27 @@ class Settings(BaseSettings):
     # Prompt 9 — mark online screens offline after missed heartbeats
     screen_offline_after_seconds: int = 60
 
-    # Run theme + offline ticks inside the API process (handy without Celery)
+    # Run theme + offline ticks inside the API process (handy without Celery).
+    # Disabled automatically on Vercel serverless (no long-lived process).
     inline_scheduler: bool = True
     inline_scheduler_interval_seconds: int = 30
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        # Always allow the known Vercel frontend production aliases
+        for extra in (
+            "https://digital-signage-web-rho.vercel.app",
+            "https://digital-signage-web.vercel.app",
+        ):
+            if extra not in origins:
+                origins.append(extra)
+        return origins
+
+    @property
+    def database_host_is_local(self) -> bool:
+        url = self.async_database_url.lower()
+        return "localhost" in url or "127.0.0.1" in url
 
     @property
     def async_database_url(self) -> str:
@@ -78,10 +92,19 @@ class Settings(BaseSettings):
 
     @property
     def async_engine_connect_args(self) -> dict:
-        """Supabase transaction pooler (PgBouncer) needs statement_cache_size=0."""
-        if self.uses_supabase_pooler:
-            return {"statement_cache_size": 0}
-        return {}
+        """Supabase transaction pooler (PgBouncer) needs statement_cache_size=0 + SSL."""
+        args: dict = {}
+        if self.uses_supabase_pooler or "supabase.com" in self.async_database_url.lower():
+            import ssl
+
+            # Supabase pooler presents an intermediate that fails strict verify
+            # on some serverless runtimes (CERTIFICATE_VERIFY_FAILED / self-signed).
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            args["statement_cache_size"] = 0
+            args["ssl"] = ctx
+        return args
 
     @property
     def resolved_jwks_url(self) -> str:

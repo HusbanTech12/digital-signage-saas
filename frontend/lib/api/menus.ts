@@ -106,7 +106,9 @@ export function createTemplateApi(
 export function updateTemplateApi(
   token: Token,
   templateId: string,
-  patch: Partial<Pick<Template, "name" | "description" | "canvasJson">>,
+  patch: Partial<
+    Pick<Template, "name" | "description" | "canvasJson" | "displayConfig">
+  >,
 ) {
   return apiFetch<Template>(`/api/v1/templates/${templateId}`, {
     method: "PATCH",

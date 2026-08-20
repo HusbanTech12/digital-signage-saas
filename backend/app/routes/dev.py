@@ -45,6 +45,20 @@ CLASSIC_CANVAS = {
     "height": 1080,
 }
 
+FUSION_PREMIUM_DISPLAY_CONFIG = {
+    "layout": "premium",
+    "brandTitle": "Fusion Kitchen",
+    "subtitle": "TODAY'S MENU",
+    "accentColor": "#c4a574",
+    "backgroundColor": "#0c0c0e",
+    "textColor": "#fafaf9",
+    "mutedColor": "#71717a",
+    "soldOutColor": "#991b1b",
+    "categories": ["Starters", "Mains", "Sweets"],
+    "showClock": True,
+    "showSoldOut": True,
+}
+
 PORTRAIT_CANVAS = {
     "version": "6.0.0",
     "background": "#18181b",
@@ -226,11 +240,14 @@ async def seed_demo_data(
         Template(
             id="tpl_classic_board",
             organization_id=None,
-            name="Classic Board",
-            description="Two-column menu with prices aligned right.",
+            name="Fusion Kitchen Premium",
+            description=(
+                "Dark 3-column TV board with gold accents, live clock, and sold-out styling."
+            ),
             thumbnail_url=None,
             is_global=True,
             canvas_json=deepcopy(CLASSIC_CANVAS),
+            display_config=deepcopy(FUSION_PREMIUM_DISPLAY_CONFIG),
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
             updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         ),
@@ -255,6 +272,7 @@ async def seed_demo_data(
             existing.is_global = tpl.is_global
             existing.organization_id = tpl.organization_id
             existing.canvas_json = deepcopy(tpl.canvas_json)
+            existing.display_config = deepcopy(tpl.display_config)
 
     # Flush so screen FKs to menus/templates resolve.
     await db.flush()

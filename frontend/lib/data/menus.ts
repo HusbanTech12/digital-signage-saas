@@ -180,7 +180,9 @@ export async function createTemplate(
 
 export async function updateTemplate(
   templateId: string,
-  patch: Partial<Pick<Template, "name" | "description" | "canvasJson">>,
+  patch: Partial<
+    Pick<Template, "name" | "description" | "canvasJson" | "displayConfig">
+  >,
   token?: Token | null,
 ): Promise<Template> {
   if (useLiveApi() && token) {

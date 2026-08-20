@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CanvasBoard } from "@/components/display/canvas-board";
 import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
+import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
+import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 import { useLiveApi } from "@/lib/api/config";
 import { readDisplayCache, writeDisplayCache } from "@/lib/display/cache";
 import { touchScreenHeartbeat } from "@/lib/display/heartbeat";
@@ -196,10 +198,24 @@ export function KioskPlayer({
     );
   }
 
+  const usePremium = payload.displayConfig?.layout === "premium";
+  const displayConfig = usePremium
+    ? mergeDisplayConfig(payload.displayConfig)
+    : null;
   const showCanvas =
+    !usePremium &&
     payload.canvasJson &&
     Array.isArray(payload.canvasJson.objects) &&
     payload.canvasJson.objects.length > 0;
+
+  const statusLabel =
+    source === "live"
+      ? liveApi
+        ? "Live"
+        : "Preview mode (mock data)"
+      : source === "cache"
+        ? "Cached"
+        : undefined;
 
   return (
     <div
@@ -222,6 +238,12 @@ export function KioskPlayer({
             className="h-auto w-full max-w-[100vw]"
           />
         </div>
+      ) : usePremium && displayConfig ? (
+        <PremiumMenuBoard
+          items={payload.items}
+          config={displayConfig}
+          statusLabel={statusLabel}
+        />
       ) : (
         <MenuFallbackBoard
           title={payload.menuName ?? payload.screenName}

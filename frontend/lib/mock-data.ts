@@ -7,6 +7,7 @@ import {
   createClassicBoardJson,
   createPortraitPromoJson,
 } from "@/lib/designer/canvas-io";
+import { DEFAULT_MENU_DISPLAY_CONFIG } from "@/lib/display/menu-board-theme";
 import type {
   Location,
   Menu,
@@ -179,11 +180,13 @@ export const templates: Template[] = [
   {
     id: "tpl_classic_board",
     organizationId: null,
-    name: "Classic Board",
-    description: "Two-column menu with prices aligned right.",
+    name: "Fusion Kitchen Premium",
+    description:
+      "Dark 3-column TV board with gold accents, live clock, and sold-out styling.",
     thumbnailUrl: null,
     isGlobal: true,
     canvasJson: createClassicBoardJson(),
+    displayConfig: { ...DEFAULT_MENU_DISPLAY_CONFIG },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   },
