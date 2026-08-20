@@ -10,6 +10,11 @@ class OrganizationOut(CamelModel):
     created_at: datetime
 
 
+class OrganizationCreate(CamelModel):
+    name: str
+    slug: str
+
+
 class OrganizationUpdate(CamelModel):
     name: str | None = None
     slug: str | None = None

@@ -4,6 +4,7 @@ import {
   Building2,
   MapPin,
   Monitor,
+  Cast,
   UtensilsCrossed,
   LayoutTemplate,
   CalendarClock,
@@ -45,7 +46,12 @@ export const DASHBOARD_NAV: NavItem[] = [
     icon: Monitor,
     roles: ["super_admin", "admin", "location_manager"],
   },
-
+  {
+    label: "Stick setup",
+    href: "/dashboard/setup",
+    icon: Cast,
+    roles: ["super_admin", "admin", "location_manager"],
+  },
   {
     label: "Menus",
     href: "/dashboard/menus",

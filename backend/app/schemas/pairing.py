@@ -28,3 +28,5 @@ class PairingCompleteIn(CamelModel):
     location_id: str
     name: str
     organization_id: str
+    resolution: str | None = None
+    orientation: Literal["landscape", "portrait"] | None = None

@@ -248,6 +248,8 @@ async def seed_demo_data(
             is_global=True,
             canvas_json=deepcopy(CLASSIC_CANVAS),
             display_config=deepcopy(FUSION_PREMIUM_DISPLAY_CONFIG),
+            resolution="1920x1080",
+            orientation="landscape",
             created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
             updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         ),
@@ -259,6 +261,9 @@ async def seed_demo_data(
             thumbnail_url=None,
             is_global=False,
             canvas_json=deepcopy(PORTRAIT_CANVAS),
+            display_config={},
+            resolution="1080x1920",
+            orientation="portrait",
             created_at=datetime(2026, 2, 10, tzinfo=timezone.utc),
             updated_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
         ),
@@ -273,6 +278,8 @@ async def seed_demo_data(
             existing.organization_id = tpl.organization_id
             existing.canvas_json = deepcopy(tpl.canvas_json)
             existing.display_config = deepcopy(tpl.display_config)
+            existing.resolution = tpl.resolution
+            existing.orientation = tpl.orientation
 
     # Flush so screen FKs to menus/templates resolve.
     await db.flush()

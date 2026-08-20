@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Show, SignInButton } from "@clerk/nextjs";
+import { Show } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 
 export function MarketingNav() {
   return (
     <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 py-5 md:px-10">
       <Link
-        href="/"
+        href="/landing"
         className="font-display text-2xl font-semibold tracking-tight text-[var(--mkt-fg)] md:text-3xl"
       >
         Signage
@@ -21,17 +21,16 @@ export function MarketingNav() {
           Contact
         </a>
         <Show when="signed-out">
-          <SignInButton mode="redirect">
-            <Button
-              variant="outline"
-              className="border-[var(--mkt-line)] bg-transparent text-[var(--mkt-fg)] hover:bg-white/5"
-            >
-              Sign in
-            </Button>
-          </SignInButton>
+          <Button
+            variant="outline"
+            className="border-[var(--mkt-line)] bg-transparent text-[var(--mkt-fg)] hover:bg-white/5"
+            render={<Link href="/" />}
+          >
+            Sign in
+          </Button>
           <Button
             className="bg-[var(--mkt-accent)] text-[#152010] hover:bg-[var(--mkt-accent)]/90"
-            render={<Link href="/sign-up" />}
+            render={<Link href="/?mode=sign-up" />}
           >
             Start free
           </Button>

@@ -59,6 +59,21 @@ export function getMyOrganizationApi(token: AuthToken) {
   return apiFetch<Organization>("/api/v1/organizations/me", { token });
 }
 
+export function listOrganizationsApi(token: AuthToken) {
+  return apiFetch<Organization[]>("/api/v1/organizations", { token });
+}
+
+export function createOrganizationApi(
+  token: AuthToken,
+  input: { name: string; slug: string },
+) {
+  return apiFetch<Organization>("/api/v1/organizations", {
+    method: "POST",
+    token,
+    body: input,
+  });
+}
+
 export function updateOrganizationApi(
   token: AuthToken,
   organizationId: string,
@@ -136,6 +151,8 @@ export function completePairingApi(
     locationId: string;
     name: string;
     organizationId: string;
+    resolution?: string;
+    orientation?: ScreenOrientation;
   },
 ) {
   return apiFetch<Screen>("/api/v1/pairing/complete", {

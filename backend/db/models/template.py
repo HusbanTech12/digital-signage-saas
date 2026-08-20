@@ -26,6 +26,12 @@ class Template(Base):
     display_config: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
+    resolution: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="1920x1080"
+    )
+    orientation: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="landscape"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

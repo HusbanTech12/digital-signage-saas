@@ -7,10 +7,12 @@ import { ApiError } from "@/lib/api/client";
 import {
   completePairingApi,
   createLocationApi,
+  createOrganizationApi,
   deleteLocationApi,
   deleteScreenApi,
   getMyOrganizationApi,
   listLocations,
+  listOrganizationsApi,
   listScreens,
   onboardMeApi,
   startPairingSessionApi,
@@ -28,6 +30,7 @@ import { DEFAULT_ORGANIZATION_ID, useLiveApi } from "@/lib/api/config";
 import {
   completePairing as completePairingMock,
   createLocation as createLocationMock,
+  createOrganization as createOrganizationMock,
   deleteLocation as deleteLocationMock,
   deleteScreen as deleteScreenMock,
   hydrateTenantData,
@@ -40,6 +43,7 @@ import {
   upsertLocation,
   upsertOrganization,
   upsertScreen,
+  getMockStoreSnapshot,
 } from "@/lib/mock-api/store";
 import type {
   Location,
@@ -62,6 +66,25 @@ export async function ensureProvisioned(token: Token) {
     if (!needsOnboard) throw err;
     const onboarded = await onboardMeApi(token);
     return onboarded.organization;
+  }
+}
+
+/** Ensure Clerk user exists in API DB, then run the mutation (retry once if needed). */
+export async function withProvisioned<T>(
+  token: Token,
+  action: () => Promise<T>,
+): Promise<T> {
+  await ensureProvisioned(token);
+  try {
+    return await action();
+  } catch (err) {
+    const needsOnboard =
+      err instanceof ApiError &&
+      err.status === 403 &&
+      /not provisioned/i.test(err.message);
+    if (!needsOnboard) throw err;
+    await onboardMeApi(token);
+    return await action();
   }
 }
 
@@ -109,11 +132,40 @@ export async function updateOrganization(
   token?: Token | null,
 ): Promise<Organization> {
   if (useLiveApi() && token) {
-    const org = await updateOrganizationApi(token, organizationId, patch);
+    const org = await withProvisioned(token, () =>
+      updateOrganizationApi(token, organizationId, patch),
+    );
     upsertOrganization(org);
     return org;
   }
   return updateOrganizationMock(organizationId, patch);
+}
+
+export async function createOrganization(
+  input: { name: string; slug: string },
+  token?: Token | null,
+): Promise<Organization> {
+  if (useLiveApi() && token) {
+    const org = await withProvisioned(token, () =>
+      createOrganizationApi(token, input),
+    );
+    upsertOrganization(org);
+    return org;
+  }
+  return createOrganizationMock(input);
+}
+
+export async function listOrganizations(
+  token?: Token | null,
+): Promise<Organization[]> {
+  if (useLiveApi() && token) {
+    const orgs = await withProvisioned(token, () =>
+      listOrganizationsApi(token),
+    );
+    hydrateTenantData({ organizations: orgs });
+    return orgs;
+  }
+  return getMockStoreSnapshot().organizations.map((o) => ({ ...o }));
 }
 
 export async function createLocation(
@@ -126,7 +178,9 @@ export async function createLocation(
   token?: Token | null,
 ): Promise<Location> {
   if (useLiveApi() && token) {
-    const location = await createLocationApi(token, input);
+    const location = await withProvisioned(token, () =>
+      createLocationApi(token, input),
+    );
     upsertLocation(location);
     return location;
   }
@@ -139,7 +193,9 @@ export async function updateLocation(
   token?: Token | null,
 ): Promise<Location> {
   if (useLiveApi() && token) {
-    const location = await updateLocationApi(token, locationId, patch);
+    const location = await withProvisioned(token, () =>
+      updateLocationApi(token, locationId, patch),
+    );
     upsertLocation(location);
     return location;
   }
@@ -151,7 +207,7 @@ export async function deleteLocation(
   token?: Token | null,
 ): Promise<void> {
   if (useLiveApi() && token) {
-    await deleteLocationApi(token, locationId);
+    await withProvisioned(token, () => deleteLocationApi(token, locationId));
     removeLocationLocal(locationId);
     return;
   }
@@ -166,7 +222,9 @@ export async function updateScreen(
   token?: Token | null,
 ): Promise<Screen> {
   if (useLiveApi() && token) {
-    const screen = await updateScreenApi(token, screenId, patch);
+    const screen = await withProvisioned(token, () =>
+      updateScreenApi(token, screenId, patch),
+    );
     upsertScreen(screen);
     return screen;
   }
@@ -178,7 +236,7 @@ export async function deleteScreen(
   token?: Token | null,
 ): Promise<void> {
   if (useLiveApi() && token) {
-    await deleteScreenApi(token, screenId);
+    await withProvisioned(token, () => deleteScreenApi(token, screenId));
     removeScreenLocal(screenId);
     return;
   }
@@ -208,11 +266,15 @@ export async function completePairing(
     locationId: string;
     name: string;
     organizationId: string;
+    resolution?: string;
+    orientation?: ScreenOrientation;
   },
   token?: Token | null,
 ): Promise<Screen> {
   if (useLiveApi() && token) {
-    const screen = await completePairingApi(token, input);
+    const screen = await withProvisioned(token, () =>
+      completePairingApi(token, input),
+    );
     upsertScreen(screen);
     return screen;
   }

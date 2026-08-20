@@ -88,6 +88,8 @@ async def create_template(
     require_roles(user, "super_admin", "admin")
     assert_same_org(user, body.organization_id)
     now = _utcnow()
+    resolution = (body.resolution or "1920x1080").strip() or "1920x1080"
+    orientation = body.orientation or "landscape"
     template = Template(
         id=new_id("tpl"),
         organization_id=body.organization_id,
@@ -96,6 +98,9 @@ async def create_template(
         thumbnail_url=None,
         is_global=False,
         canvas_json=deepcopy(BLANK_CANVAS),
+        display_config={},
+        resolution=resolution,
+        orientation=orientation,
         created_at=now,
         updated_at=now,
     )
@@ -128,6 +133,8 @@ async def duplicate_template(
         is_global=False,
         canvas_json=deepcopy(source.canvas_json or {}),
         display_config=deepcopy(source.display_config or {}),
+        resolution=source.resolution or "1920x1080",
+        orientation=source.orientation or "landscape",
         created_at=now,
         updated_at=now,
     )
@@ -173,6 +180,10 @@ async def update_template(
         template.canvas_json = deepcopy(body.canvas_json)
     if body.display_config is not None:
         template.display_config = deepcopy(body.display_config)
+    if body.resolution is not None:
+        template.resolution = body.resolution.strip() or template.resolution
+    if body.orientation is not None:
+        template.orientation = body.orientation
 
     template.updated_at = _utcnow()
     await db.commit()

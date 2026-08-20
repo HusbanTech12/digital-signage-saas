@@ -19,7 +19,13 @@ import {
   filterScreensForUser,
 } from "@/lib/access";
 import { deleteScreen, updateScreen } from "@/lib/data/tenant";
-import type { Screen } from "@/lib/types/schema";
+import {
+  CUSTOM_LCD_PRESET_ID,
+  LCD_PRESETS,
+  lcdPresetLabel,
+  lcdPresetSelectValue,
+} from "@/lib/display/lcd-presets";
+import type { Screen, ScreenOrientation } from "@/lib/types/schema";
 
 export default function ScreensPage() {
   const { session, role } = useMockSession();
@@ -86,9 +92,12 @@ export default function ScreensPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Screens"
-        description="Pair devices, assign locations, and monitor online status."
+        description="Pair devices, match LCD type to your TV, and monitor online status."
         actions={
           <>
+            <Button variant="outline" render={<Link href="/dashboard/setup" />}>
+              Stick setup
+            </Button>
             <Button variant="outline" render={<Link href="/pair" target="_blank" />}>
               Open /pair
             </Button>
@@ -132,7 +141,7 @@ export default function ScreensPage() {
               <th className="px-4 py-3 font-medium">Location</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="hidden px-4 py-3 font-medium lg:table-cell">
-                Resolution
+                LCD type
               </th>
               <th className="hidden px-4 py-3 font-medium md:table-cell">
                 Last heartbeat
@@ -171,7 +180,12 @@ export default function ScreensPage() {
                     <StatusBadge status={screen.status} />
                   </td>
                   <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-                    {screen.resolution} · {screen.orientation}
+                    <div>
+                      {lcdPresetLabel(screen.resolution, screen.orientation)}
+                    </div>
+                    <div className="text-xs">
+                      {screen.resolution} · {screen.orientation}
+                    </div>
                   </td>
                   <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
                     {screen.lastHeartbeat
@@ -255,14 +269,34 @@ function EditScreenDialog({
   const [locationId, setLocationId] = useState(screen.locationId ?? "");
   const [orientation, setOrientation] = useState(screen.orientation);
   const [resolution, setResolution] = useState(screen.resolution);
+  const [presetId, setPresetId] = useState(
+    lcdPresetSelectValue(screen.resolution, screen.orientation),
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const activePreset =
+    presetId === CUSTOM_LCD_PRESET_ID
+      ? null
+      : (LCD_PRESETS.find((p) => p.id === presetId) ?? null);
+
+  function applyPreset(nextPresetId: string) {
+    setPresetId(nextPresetId);
+    if (nextPresetId === CUSTOM_LCD_PRESET_ID) return;
+    const preset = LCD_PRESETS.find((p) => p.id === nextPresetId);
+    if (!preset) return;
+    setResolution(preset.resolution);
+    setOrientation(preset.orientation);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaving(true);
     try {
+      if (!/^\d{3,5}x\d{3,5}$/i.test(resolution.trim())) {
+        throw new Error("Resolution must look like 1920x1080.");
+      }
       const token = await getApiToken();
       await updateScreen(
         screen.id,
@@ -270,7 +304,7 @@ function EditScreenDialog({
           name,
           locationId: locationId || null,
           orientation,
-          resolution,
+          resolution: resolution.trim(),
         },
         token,
       );
@@ -320,31 +354,54 @@ function EditScreenDialog({
             ))}
           </select>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="scr-orient">Orientation</Label>
-            <select
-              id="scr-orient"
-              value={orientation}
-              onChange={(e) =>
-                setOrientation(e.target.value as Screen["orientation"])
-              }
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="landscape">Landscape</option>
-              <option value="portrait">Portrait</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="scr-res">Resolution</Label>
-            <Input
-              id="scr-res"
-              value={resolution}
-              onChange={(e) => setResolution(e.target.value)}
-              required
-            />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="scr-lcd">LCD type</Label>
+          <select
+            id="scr-lcd"
+            value={presetId}
+            onChange={(e) => applyPreset(e.target.value)}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            {LCD_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.label} ({preset.resolution})
+              </option>
+            ))}
+            <option value={CUSTOM_LCD_PRESET_ID}>Custom…</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {activePreset?.hint ??
+              "Enter the exact pixel size of your physical LCD."}
+          </p>
         </div>
+        {presetId === CUSTOM_LCD_PRESET_ID ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="scr-orient">Orientation</Label>
+              <select
+                id="scr-orient"
+                value={orientation}
+                onChange={(e) =>
+                  setOrientation(e.target.value as ScreenOrientation)
+                }
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="landscape">Landscape</option>
+                <option value="portrait">Portrait</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="scr-res">Resolution</Label>
+              <Input
+                id="scr-res"
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                placeholder="1920x1080"
+                required
+              />
+            </div>
+          </div>
+        ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>

@@ -152,6 +152,33 @@ export function updateOrganization(
   return { ...org };
 }
 
+export function createOrganization(input: {
+  name: string;
+  slug: string;
+}): Organization {
+  const name = input.name.trim();
+  const slug = input.slug
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  if (!name) throw new Error("Name is required");
+  if (!slug) throw new Error("Slug is required");
+  if (organizationsState.some((o) => o.slug === slug)) {
+    throw new Error("Slug already in use");
+  }
+  const org: Organization = {
+    id: id("org"),
+    name,
+    slug,
+    createdAt: nowIso(),
+  };
+  organizationsState = [...organizationsState, org];
+  emit();
+  return { ...org };
+}
+
 export function createLocation(input: {
   organizationId: string;
   name: string;
@@ -301,6 +328,8 @@ export function completePairing(input: {
   locationId: string;
   name: string;
   organizationId: string;
+  resolution?: string;
+  orientation?: ScreenOrientation;
 }): Screen {
   const pairing = getPendingPairingByCode(input.code);
   if (!pairing) throw new Error("Invalid or expired pairing code.");
@@ -319,6 +348,12 @@ export function completePairing(input: {
 
   screen.locationId = input.locationId;
   screen.name = input.name.trim() || "Paired screen";
+  if (input.resolution?.trim()) {
+    screen.resolution = input.resolution.trim();
+  }
+  if (input.orientation) {
+    screen.orientation = input.orientation;
+  }
   screen.pairingCode = null;
   screen.status = "online";
   screen.lastHeartbeat = nowIso();
@@ -437,6 +472,8 @@ export function createTemplate(input: {
   organizationId: string;
   name: string;
   description?: string;
+  resolution?: string;
+  orientation?: ScreenOrientation;
 }): Template {
   const ts = nowIso();
   const template: Template = {
@@ -448,6 +485,8 @@ export function createTemplate(input: {
     isGlobal: false,
     canvasJson: createBlankCanvasJson(),
     displayConfig: { ...DEFAULT_MENU_DISPLAY_CONFIG },
+    resolution: input.resolution?.trim() || "1920x1080",
+    orientation: input.orientation ?? "landscape",
     createdAt: ts,
     updatedAt: ts,
   };
@@ -459,12 +498,26 @@ export function createTemplate(input: {
 export function updateTemplate(
   templateId: string,
   patch: Partial<
-    Pick<Template, "name" | "description" | "canvasJson" | "displayConfig">
+    Pick<
+      Template,
+      | "name"
+      | "description"
+      | "canvasJson"
+      | "displayConfig"
+      | "resolution"
+      | "orientation"
+    >
   >,
 ): Template {
   const template = templatesState.find((t) => t.id === templateId);
   if (!template) throw new Error("Template not found");
-  if (template.isGlobal && (patch.canvasJson || patch.displayConfig)) {
+  if (
+    template.isGlobal &&
+    (patch.canvasJson ||
+      patch.displayConfig ||
+      patch.resolution ||
+      patch.orientation)
+  ) {
     throw new Error("Global templates are read-only. Duplicate to edit.");
   }
   if (patch.name !== undefined) template.name = patch.name.trim();
@@ -476,6 +529,12 @@ export function updateTemplate(
   }
   if (patch.displayConfig !== undefined) {
     template.displayConfig = structuredClone(patch.displayConfig);
+  }
+  if (patch.resolution !== undefined) {
+    template.resolution = patch.resolution.trim() || template.resolution;
+  }
+  if (patch.orientation !== undefined) {
+    template.orientation = patch.orientation;
   }
   template.updatedAt = nowIso();
   emit();
@@ -507,6 +566,8 @@ export function duplicateTemplate(input: {
     displayConfig: source.displayConfig
       ? structuredClone(source.displayConfig)
       : undefined,
+    resolution: source.resolution || "1920x1080",
+    orientation: source.orientation || "landscape",
     createdAt: ts,
     updatedAt: ts,
   };

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { TemplateLcdTypeFields } from "@/components/dashboard/template-lcd-type-fields";
 import { useMockSession } from "@/components/providers/mock-session-provider";
 import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,9 @@ import {
   deleteTemplate,
   duplicateTemplate,
 } from "@/lib/data/menus";
+import { lcdPresetLabel } from "@/lib/display/lcd-presets";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
+import type { ScreenOrientation } from "@/lib/types/schema";
 
 export default function TemplatesPage() {
   return (
@@ -67,7 +70,6 @@ function TemplatesPageInner() {
     );
   }
 
-
   async function openEditor(templateId: string, isGlobal: boolean) {
     setError(null);
     try {
@@ -96,8 +98,8 @@ function TemplatesPageInner() {
         title="Templates"
         description={
           menuId
-            ? "Pick a layout to design, then publish from the menu page."
-            : "Gallery of global and organization menu board layouts."
+            ? "Pick a layout for your LCD type, then publish from the menu page."
+            : "Gallery of layouts — each template targets an LCD / screen type."
         }
         actions={
           canManageTemplates(role) ? (
@@ -105,7 +107,6 @@ function TemplatesPageInner() {
           ) : null
         }
       />
-
 
       {error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -119,67 +120,84 @@ function TemplatesPageInner() {
           const previewConfig = isPremium
             ? mergeDisplayConfig(template.displayConfig)
             : null;
+          const isPortrait = template.orientation === "portrait";
+          const lcdLabel = lcdPresetLabel(
+            template.resolution || "1920x1080",
+            template.orientation || "landscape",
+          );
 
           return (
-          <article
-            key={template.id}
-            className="flex flex-col rounded-xl border border-border p-4"
-          >
-            <div className="relative aspect-video overflow-hidden rounded-lg bg-zinc-900">
-              {isPremium && previewConfig ? (
-                <div
-                  className="pointer-events-none origin-top-left scale-[0.22]"
-                  style={{ width: "454.55%", height: "454.55%" }}
-                >
-                  <PremiumMenuBoard
-                    items={previewItems}
-                    config={previewConfig}
-                    statusLabel="Preview"
-                  />
-                </div>
-              ) : (
-                <div className="flex h-full items-center justify-center text-xs text-zinc-400">
-                  {template.isGlobal ? "Global library" : "Canvas layout"}
-                </div>
-              )}
-            </div>
-            <h2 className="mt-3 font-semibold tracking-tight">
-              {template.name}
-            </h2>
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-              {template.description || "No description"}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                onClick={() => void openEditor(template.id, template.isGlobal)}
+            <article
+              key={template.id}
+              className="flex flex-col rounded-xl border border-border p-4"
+            >
+              <div
+                className={`relative overflow-hidden rounded-lg bg-zinc-900 ${
+                  isPortrait ? "aspect-[9/16] max-h-56 mx-auto w-full max-w-[10rem]" : "aspect-video"
+                }`}
               >
-                {template.isGlobal ? "Customize" : "Edit"}
-              </Button>
-              {!template.isGlobal && canManageTemplates(role) ? (
+                {isPremium && previewConfig ? (
+                  <div
+                    className="pointer-events-none origin-top-left scale-[0.22]"
+                    style={{ width: "454.55%", height: "454.55%" }}
+                  >
+                    <PremiumMenuBoard
+                      items={previewItems}
+                      config={previewConfig}
+                      statusLabel="Preview"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-zinc-400">
+                    {template.isGlobal ? "Global library" : "Canvas layout"}
+                  </div>
+                )}
+              </div>
+              <h2 className="mt-3 font-semibold tracking-tight">
+                {template.name}
+              </h2>
+              <p className="mt-1 text-xs font-medium text-foreground">
+                {lcdLabel}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {template.resolution || "1920x1080"} ·{" "}
+                {template.orientation || "landscape"}
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                {template.description || "No description"}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    if (!confirm(`Delete “${template.name}”?`)) return;
-                    void (async () => {
-                      try {
-                        const token = await getApiToken();
-                        await deleteTemplate(template.id, token);
-                      } catch (err) {
-                        setError(
-                          err instanceof Error ? err.message : "Delete failed.",
-                        );
-                      }
-                    })();
-                  }}
+                  onClick={() => void openEditor(template.id, template.isGlobal)}
                 >
-                  Delete
+                  {template.isGlobal ? "Customize" : "Edit"}
                 </Button>
-              ) : null}
-
-            </div>
-          </article>
+                {!template.isGlobal && canManageTemplates(role) ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      if (!confirm(`Delete “${template.name}”?`)) return;
+                      void (async () => {
+                        try {
+                          const token = await getApiToken();
+                          await deleteTemplate(template.id, token);
+                        } catch (err) {
+                          setError(
+                            err instanceof Error
+                              ? err.message
+                              : "Delete failed.",
+                          );
+                        }
+                      })();
+                    }}
+                  >
+                    Delete
+                  </Button>
+                ) : null}
+              </div>
+            </article>
           );
         })}
       </div>
@@ -210,6 +228,9 @@ function CreateTemplateDialog({
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [resolution, setResolution] = useState("1920x1080");
+  const [orientation, setOrientation] =
+    useState<ScreenOrientation>("landscape");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -218,9 +239,18 @@ function CreateTemplateDialog({
     setError(null);
     setSaving(true);
     try {
+      if (!/^\d{3,5}x\d{3,5}$/i.test(resolution.trim())) {
+        throw new Error("Resolution must look like 1920x1080.");
+      }
       const token = await getApiToken();
       const template = await createTemplate(
-        { organizationId, name, description },
+        {
+          organizationId,
+          name,
+          description,
+          resolution: resolution.trim(),
+          orientation,
+        },
         token,
       );
       const qs = menuId ? `?menuId=${menuId}` : "";
@@ -263,6 +293,14 @@ function CreateTemplateDialog({
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
+        <TemplateLcdTypeFields
+          resolution={resolution}
+          orientation={orientation}
+          onChange={({ resolution: r, orientation: o }) => {
+            setResolution(r);
+            setOrientation(o);
+          }}
+        />
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>

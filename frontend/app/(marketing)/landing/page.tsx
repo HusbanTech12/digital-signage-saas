@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     "Design, schedule, and publish digital menu boards to every location from one dashboard. Browser-based kiosk player — no native TV app required.",
 };
 
-export default function MarketingPage() {
+export default function MarketingLandingPage() {
   return (
     <main>
       <Hero />

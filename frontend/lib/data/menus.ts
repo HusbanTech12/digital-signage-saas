@@ -20,6 +20,7 @@ import {
   updateTemplateApi,
 } from "@/lib/api/menus";
 import { useLiveApi } from "@/lib/api/config";
+import { withProvisioned } from "@/lib/data/tenant";
 import {
   createMenu as createMenuMock,
   createMenuItem as createMenuItemMock,
@@ -61,7 +62,7 @@ export async function createMenu(
   token?: Token | null,
 ): Promise<Menu> {
   if (useLiveApi() && token) {
-    const menu = await createMenuApi(token, input);
+    const menu = await withProvisioned(token, () => createMenuApi(token, input));
     upsertMenu(menu);
     return menu;
   }
@@ -74,7 +75,9 @@ export async function updateMenu(
   token?: Token | null,
 ): Promise<Menu> {
   if (useLiveApi() && token) {
-    const menu = await updateMenuApi(token, menuId, patch);
+    const menu = await withProvisioned(token, () =>
+      updateMenuApi(token, menuId, patch),
+    );
     upsertMenu(menu);
     return menu;
   }
@@ -86,7 +89,7 @@ export async function deleteMenu(
   token?: Token | null,
 ): Promise<void> {
   if (useLiveApi() && token) {
-    await deleteMenuApi(token, menuId);
+    await withProvisioned(token, () => deleteMenuApi(token, menuId));
     removeMenuLocal(menuId);
     return;
   }
@@ -106,7 +109,9 @@ export async function createMenuItem(
   token?: Token | null,
 ): Promise<MenuItem> {
   if (useLiveApi() && token) {
-    const item = await createMenuItemApi(token, input);
+    const item = await withProvisioned(token, () =>
+      createMenuItemApi(token, input),
+    );
     upsertMenuItem(item);
     return item;
   }
@@ -124,7 +129,9 @@ export async function updateMenuItem(
   token?: Token | null,
 ): Promise<MenuItem> {
   if (useLiveApi() && token) {
-    const item = await updateMenuItemApi(token, itemId, patch);
+    const item = await withProvisioned(token, () =>
+      updateMenuItemApi(token, itemId, patch),
+    );
     upsertMenuItem(item);
     return item;
   }
@@ -136,7 +143,7 @@ export async function deleteMenuItem(
   token?: Token | null,
 ): Promise<void> {
   if (useLiveApi() && token) {
-    await deleteMenuItemApi(token, itemId);
+    await withProvisioned(token, () => deleteMenuItemApi(token, itemId));
     removeMenuItemLocal(itemId);
     return;
   }
@@ -148,9 +155,10 @@ export async function publishMenu(
   token?: Token | null,
 ): Promise<Menu> {
   if (useLiveApi() && token) {
-    const menu = await publishMenuApi(token, input);
+    const menu = await withProvisioned(token, () =>
+      publishMenuApi(token, input),
+    );
     upsertMenu(menu);
-    // Reflect active menu/template on local screens until next full sync.
     const snap = getMockStoreSnapshot();
     for (const id of input.screenIds) {
       const screen = snap.screens.find((s) => s.id === id);
@@ -167,11 +175,19 @@ export async function publishMenu(
 }
 
 export async function createTemplate(
-  input: { organizationId: string; name: string; description?: string },
+  input: {
+    organizationId: string;
+    name: string;
+    description?: string;
+    resolution?: string;
+    orientation?: Template["orientation"];
+  },
   token?: Token | null,
 ): Promise<Template> {
   if (useLiveApi() && token) {
-    const template = await createTemplateApi(token, input);
+    const template = await withProvisioned(token, () =>
+      createTemplateApi(token, input),
+    );
     upsertTemplate(template);
     return template;
   }
@@ -181,12 +197,22 @@ export async function createTemplate(
 export async function updateTemplate(
   templateId: string,
   patch: Partial<
-    Pick<Template, "name" | "description" | "canvasJson" | "displayConfig">
+    Pick<
+      Template,
+      | "name"
+      | "description"
+      | "canvasJson"
+      | "displayConfig"
+      | "resolution"
+      | "orientation"
+    >
   >,
   token?: Token | null,
 ): Promise<Template> {
   if (useLiveApi() && token) {
-    const template = await updateTemplateApi(token, templateId, patch);
+    const template = await withProvisioned(token, () =>
+      updateTemplateApi(token, templateId, patch),
+    );
     upsertTemplate(template);
     return template;
   }
@@ -198,7 +224,9 @@ export async function duplicateTemplate(
   token?: Token | null,
 ): Promise<Template> {
   if (useLiveApi() && token) {
-    const template = await duplicateTemplateApi(token, input);
+    const template = await withProvisioned(token, () =>
+      duplicateTemplateApi(token, input),
+    );
     upsertTemplate(template);
     return template;
   }
@@ -210,7 +238,7 @@ export async function deleteTemplate(
   token?: Token | null,
 ): Promise<void> {
   if (useLiveApi() && token) {
-    await deleteTemplateApi(token, templateId);
+    await withProvisioned(token, () => deleteTemplateApi(token, templateId));
     removeTemplateLocal(templateId);
     return;
   }

@@ -81,6 +81,9 @@ export interface Template {
   isGlobal: boolean;
   canvasJson: Record<string, unknown>;
   displayConfig?: import("@/lib/display/menu-board-theme").MenuDisplayConfig | null;
+  /** Target LCD size this layout is designed for */
+  resolution: string;
+  orientation: ScreenOrientation;
   createdAt: string;
   updatedAt: string;
 }

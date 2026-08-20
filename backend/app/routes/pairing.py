@@ -101,6 +101,10 @@ async def complete_pairing(
 
     screen.location_id = location.id
     screen.name = body.name.strip() or "Paired screen"
+    if body.resolution is not None:
+        screen.resolution = body.resolution.strip() or screen.resolution
+    if body.orientation is not None:
+        screen.orientation = body.orientation
     screen.pairing_code = None
     screen.status = "online"
     screen.last_heartbeat = utcnow()

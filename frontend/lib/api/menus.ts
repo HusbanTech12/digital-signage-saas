@@ -94,7 +94,13 @@ export function listTemplatesApi(token: Token) {
 
 export function createTemplateApi(
   token: Token,
-  input: { organizationId: string; name: string; description?: string },
+  input: {
+    organizationId: string;
+    name: string;
+    description?: string;
+    resolution?: string;
+    orientation?: Template["orientation"];
+  },
 ) {
   return apiFetch<Template>("/api/v1/templates", {
     method: "POST",
@@ -107,7 +113,15 @@ export function updateTemplateApi(
   token: Token,
   templateId: string,
   patch: Partial<
-    Pick<Template, "name" | "description" | "canvasJson" | "displayConfig">
+    Pick<
+      Template,
+      | "name"
+      | "description"
+      | "canvasJson"
+      | "displayConfig"
+      | "resolution"
+      | "orientation"
+    >
   >,
 ) {
   return apiFetch<Template>(`/api/v1/templates/${templateId}`, {
