@@ -76,9 +76,22 @@ export function TenantSync({ children }: { children: React.ReactNode }) {
     <>
       {error ? (
         <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-950 dark:text-amber-100">
-          Live API sync failed ({error}). Showing local mock data. Ensure the
-          backend is running, seed has been applied, and your Clerk user can
-          onboard via POST /api/v1/me/onboard.
+          Live API sync failed ({error}). Showing local mock data.
+          {/failed to fetch/i.test(error) ? (
+            <>
+              {" "}
+              Usually CORS or a unreachable API — confirm{" "}
+              <code className="text-[11px]">NEXT_PUBLIC_API_URL</code> and that
+              the API allows <code className="text-[11px]">http://localhost:3000</code>
+              .
+            </>
+          ) : (
+            <>
+              {" "}
+              Ensure the backend is running, seed has been applied, and your
+              Clerk user can onboard via POST /api/v1/me/onboard.
+            </>
+          )}
         </div>
       ) : null}
       {ready ? (

@@ -59,8 +59,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         origins = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
-        # Always allow the known Vercel frontend production aliases
+        # Always allow local frontend + known Vercel production aliases
         for extra in (
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
             "https://digital-signage-web-rho.vercel.app",
             "https://digital-signage-web.vercel.app",
             "https://digital-menu-brai.vercel.app",
