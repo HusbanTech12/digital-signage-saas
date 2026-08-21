@@ -20,6 +20,7 @@ class Organization(Base):
     users = relationship("User", back_populates="organization")
     menus = relationship("Menu", back_populates="organization")
     themes = relationship("Theme", back_populates="organization")
+    invitations = relationship("Invitation", back_populates="organization")
     subscription = relationship(
         "Subscription", back_populates="organization", uselist=False
     )

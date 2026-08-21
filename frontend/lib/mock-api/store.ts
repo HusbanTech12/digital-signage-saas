@@ -9,8 +9,10 @@ import {
   menus as seedMenus,
   organizations as seedOrganizations,
   screens as seedScreens,
+  teamInvitations as seedInvitations,
   templates as seedTemplates,
   themes as seedThemes,
+  users as seedUsers,
 } from "@/lib/mock-data";
 import { createBlankCanvasJson } from "@/lib/designer/canvas-io";
 import { DEFAULT_MENU_DISPLAY_CONFIG } from "@/lib/display/menu-board-theme";
@@ -20,11 +22,14 @@ import type {
   MenuItem,
   Organization,
   PendingPairing,
+  Role,
   Screen,
   ScreenOrientation,
+  TeamInvitation,
   Template,
   Theme,
   ThemeRuleKind,
+  User,
 } from "@/lib/types/schema";
 
 type Listener = () => void;
@@ -63,6 +68,17 @@ function cloneThemes() {
   }));
 }
 
+function cloneUsers() {
+  return seedUsers.map((u) => ({ ...u, locationIds: [...u.locationIds] }));
+}
+
+function cloneInvitations() {
+  return seedInvitations.map((i) => ({
+    ...i,
+    locationIds: [...i.locationIds],
+  }));
+}
+
 let organizationsState: Organization[] = cloneOrganizations();
 let locationsState: Location[] = cloneLocations();
 let screensState: Screen[] = cloneScreens();
@@ -70,6 +86,8 @@ let menusState: Menu[] = cloneMenus();
 let menuItemsState: MenuItem[] = cloneMenuItems();
 let templatesState: Template[] = cloneTemplates();
 let themesState: Theme[] = cloneThemes();
+let usersState: User[] = cloneUsers();
+let invitationsState: TeamInvitation[] = cloneInvitations();
 let pendingPairings: PendingPairing[] = [];
 
 const listeners = new Set<Listener>();
@@ -82,6 +100,8 @@ export type MockStoreSnapshot = {
   menuItems: MenuItem[];
   templates: Template[];
   themes: Theme[];
+  users: User[];
+  invitations: TeamInvitation[];
   pendingPairings: PendingPairing[];
 };
 
@@ -94,6 +114,8 @@ let snapshot: MockStoreSnapshot = {
   menuItems: menuItemsState,
   templates: templatesState,
   themes: themesState,
+  users: usersState,
+  invitations: invitationsState,
   pendingPairings,
 };
 
@@ -106,6 +128,8 @@ function rebuildSnapshot() {
     menuItems: menuItemsState,
     templates: templatesState,
     themes: themesState,
+    users: usersState,
+    invitations: invitationsState,
     pendingPairings,
   };
 }
@@ -622,6 +646,9 @@ export function resetMockStore() {
   menusState = cloneMenus();
   menuItemsState = cloneMenuItems();
   templatesState = cloneTemplates();
+  themesState = cloneThemes();
+  usersState = cloneUsers();
+  invitationsState = cloneInvitations();
   pendingPairings = [];
   emit();
 }
@@ -849,3 +876,271 @@ export function removeTemplateLocal(templateId: string) {
   templatesState = templatesState.filter((t) => t.id !== templateId);
   emit();
 }
+
+// --- Team (mock) -----------------------------------------------------------
+
+export function listTeamMock(params?: {
+  q?: string;
+  role?: string;
+  status?: string;
+  locationId?: string;
+}) {
+  let members = usersState.map((u) => ({
+    ...u,
+    locationIds: [...u.locationIds],
+  }));
+  let invitations = invitationsState
+    .filter((i) => i.status === "pending")
+    .map((i) => ({ ...i, locationIds: [...i.locationIds] }));
+
+  const q = params?.q?.trim().toLowerCase();
+  if (q) {
+    members = members.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q),
+    );
+    invitations = invitations.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) || i.email.toLowerCase().includes(q),
+    );
+  }
+  if (params?.role) {
+    members = members.filter((m) => m.role === params.role);
+    invitations = invitations.filter((i) => i.role === params.role);
+  }
+  if (params?.status) {
+    members = members.filter((m) => m.status === params.status);
+    if (params.status !== "pending") invitations = [];
+  }
+  if (params?.locationId) {
+    members = members.filter(
+      (m) =>
+        m.locationIds.length === 0 ||
+        m.locationIds.includes(params.locationId!),
+    );
+    invitations = invitations.filter((i) =>
+      i.locationIds.includes(params.locationId!),
+    );
+  }
+  return { members, invitations };
+}
+
+export function inviteMemberMock(input: {
+  organizationId: string;
+  name: string;
+  email: string;
+  role: Role;
+  locationIds: string[];
+  message?: string;
+  invitedByUserId: string;
+}) {
+  const email = input.email.trim().toLowerCase();
+  if (!email.includes("@")) throw new Error("Invalid email address");
+  if (usersState.some((u) => u.email.toLowerCase() === email)) {
+    throw new Error("A team member with this email already exists");
+  }
+  if (
+    invitationsState.some(
+      (i) => i.status === "pending" && i.email.toLowerCase() === email,
+    )
+  ) {
+    throw new Error("A pending invitation already exists for this email");
+  }
+  if (
+    (input.role === "location_manager" || input.role === "viewer") &&
+    input.locationIds.length === 0
+  ) {
+    throw new Error("Location Manager and Viewer require at least one location");
+  }
+  const invitation: TeamInvitation = {
+    id: id("inv"),
+    organizationId: input.organizationId,
+    email,
+    name: input.name.trim() || email.split("@")[0],
+    role: input.role,
+    locationIds: [...input.locationIds],
+    status: "pending",
+    message: input.message?.trim() || null,
+    invitedByUserId: input.invitedByUserId,
+    expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+    createdAt: nowIso(),
+  };
+  invitationsState = [invitation, ...invitationsState];
+  emit();
+  const token = `mock_${invitation.id}`;
+  return {
+    invitation,
+    emailSent: false,
+    inviteUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/invite/${token}`,
+  };
+}
+
+export function cancelInvitationMock(invitationId: string) {
+  const inv = invitationsState.find((i) => i.id === invitationId);
+  if (!inv || inv.status !== "pending") {
+    throw new Error("Only pending invitations can be cancelled");
+  }
+  inv.status = "cancelled";
+  emit();
+  return { ...inv };
+}
+
+export function resendInvitationMock(invitationId: string) {
+  const inv = invitationsState.find((i) => i.id === invitationId);
+  if (!inv || inv.status !== "pending") {
+    throw new Error("Only pending invitations can be resent");
+  }
+  inv.expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+  emit();
+  return {
+    invitation: { ...inv, locationIds: [...inv.locationIds] },
+    emailSent: false,
+    inviteUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/invite/mock_${inv.id}`,
+  };
+}
+
+export function updateMemberRoleMock(memberId: string, role: Role) {
+  const member = usersState.find((u) => u.id === memberId);
+  if (!member) throw new Error("Team member not found");
+  const owners = usersState.filter((u) => u.role === "super_admin");
+  if (member.role === "super_admin" && role !== "super_admin" && owners.length <= 1) {
+    throw new Error("Cannot downgrade the final organization owner");
+  }
+  member.role = role;
+  emit();
+  return { ...member, locationIds: [...member.locationIds] };
+}
+
+export function updateMemberLocationsMock(
+  memberId: string,
+  locationIds: string[],
+) {
+  const member = usersState.find((u) => u.id === memberId);
+  if (!member) throw new Error("Team member not found");
+  if (
+    (member.role === "location_manager" || member.role === "viewer") &&
+    locationIds.length === 0
+  ) {
+    throw new Error("This role requires at least one location");
+  }
+  member.locationIds = [...locationIds];
+  emit();
+  return { ...member, locationIds: [...member.locationIds] };
+}
+
+export function suspendMemberMock(memberId: string) {
+  const member = usersState.find((u) => u.id === memberId);
+  if (!member) throw new Error("Team member not found");
+  if (member.role === "super_admin") {
+    const owners = usersState.filter((u) => u.role === "super_admin");
+    if (owners.length <= 1) {
+      throw new Error("Cannot suspend the final organization owner");
+    }
+  }
+  member.status = "suspended";
+  emit();
+  return { ...member, locationIds: [...member.locationIds] };
+}
+
+export function reactivateMemberMock(memberId: string) {
+  const member = usersState.find((u) => u.id === memberId);
+  if (!member) throw new Error("Team member not found");
+  member.status = "active";
+  emit();
+  return { ...member, locationIds: [...member.locationIds] };
+}
+
+export function removeMemberMock(memberId: string) {
+  const member = usersState.find((u) => u.id === memberId);
+  if (!member) throw new Error("Team member not found");
+  if (member.role === "super_admin") {
+    const owners = usersState.filter((u) => u.role === "super_admin");
+    if (owners.length <= 1) {
+      throw new Error("Cannot remove the final organization owner");
+    }
+  }
+  usersState = usersState.filter((u) => u.id !== memberId);
+  emit();
+}
+
+export function transferOwnershipMock(actorId: string, newOwnerId: string) {
+  const actor = usersState.find((u) => u.id === actorId);
+  const next = usersState.find((u) => u.id === newOwnerId);
+  if (!actor || !next) throw new Error("Team member not found");
+  if (actor.role !== "super_admin") {
+    throw new Error("Only the current owner can transfer ownership");
+  }
+  next.role = "super_admin";
+  next.locationIds = [];
+  next.status = "active";
+  actor.role = "admin";
+  emit();
+  return { ...next, locationIds: [...next.locationIds] };
+}
+
+export function acceptInvitationMock(input: {
+  token: string;
+  clerkUserId: string;
+  email: string;
+  name: string;
+}) {
+  const invId = input.token.replace(/^mock_/, "");
+  const inv = invitationsState.find((i) => i.id === invId);
+  if (!inv) throw new Error("Invitation not found");
+  if (inv.status !== "pending") throw new Error("This invitation is no longer valid");
+  if (new Date(inv.expiresAt).getTime() < Date.now()) {
+    inv.status = "expired";
+    emit();
+    throw new Error("This invitation has expired");
+  }
+  if (input.email && input.email.toLowerCase() !== inv.email.toLowerCase()) {
+    throw new Error("Signed-in email does not match the invitation email");
+  }
+  const user: User = {
+    id: id("user"),
+    clerkUserId: input.clerkUserId,
+    organizationId: inv.organizationId,
+    email: inv.email,
+    name: input.name || inv.name,
+    role: inv.role,
+    locationIds: [...inv.locationIds],
+    status: "active",
+    lastActiveAt: nowIso(),
+    createdAt: nowIso(),
+  };
+  usersState = [...usersState, user];
+  inv.status = "accepted";
+  emit();
+  return user;
+}
+
+export function previewInvitationMock(token: string) {
+  const invId = token.replace(/^mock_/, "");
+  const inv = invitationsState.find((i) => i.id === invId);
+  if (!inv) throw new Error("Invitation not found");
+  const org = organizationsState.find((o) => o.id === inv.organizationId);
+  const expired = new Date(inv.expiresAt).getTime() < Date.now();
+  const valid = inv.status === "pending" && !expired;
+  return {
+    organizationId: inv.organizationId,
+    organizationName: org?.name ?? "Organization",
+    email: inv.email,
+    name: inv.name,
+    role: inv.role,
+    roleLabel: inv.role,
+    locationIds: [...inv.locationIds],
+    locationNames: inv.locationIds
+      .map((lid) => locationsState.find((l) => l.id === lid)?.name)
+      .filter(Boolean) as string[],
+    expiresAt: inv.expiresAt,
+    status: expired ? "expired" : inv.status,
+    message: inv.message,
+    valid,
+    error: valid
+      ? null
+      : expired
+        ? "This invitation has expired"
+        : "This invitation is no longer valid",
+  };
+}
+

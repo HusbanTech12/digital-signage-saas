@@ -4,6 +4,8 @@ node_modules/
 .env.local
 backend/.env
 frontend/.env.local
+backend/uploads/
+uploads/
 venv/
 .venv/
 __pycache__/
@@ -16,5 +18,3 @@ build/
 !.env.example
 !backend/.env.example
 !frontend/.env.example
-
-

@@ -32,4 +32,6 @@ export const DEV_CLERK_USER_BY_ROLE = {
   super_admin: "user_clerk_super_demo",
   admin: "user_clerk_admin_demo",
   location_manager: "user_clerk_mgr_demo",
+  content_manager: "user_clerk_content_demo",
+  viewer: "user_clerk_viewer_demo",
 } as const;

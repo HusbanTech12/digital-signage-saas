@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { VercelToolbar } from "@vercel/toolbar/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -24,6 +25,9 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Preview deployments inject the toolbar automatically; this is for localhost.
+  const shouldInjectToolbar = process.env.NODE_ENV === "development";
+
   return (
     <ClerkProvider>
       <html
@@ -37,6 +41,7 @@ export default function RootLayout({
           suppressHydrationWarning
         >
           {children}
+          {shouldInjectToolbar ? <VercelToolbar /> : null}
         </body>
       </html>
     </ClerkProvider>

@@ -1,6 +1,13 @@
 /** Domain types matching AGENTS.md Section 5 — contract for mock data and future FastAPI. */
 
-export type Role = "super_admin" | "admin" | "location_manager";
+export type Role =
+  | "super_admin"
+  | "admin"
+  | "location_manager"
+  | "content_manager"
+  | "viewer";
+
+export type MemberStatus = "active" | "suspended" | "pending";
 
 export type ScreenOrientation = "landscape" | "portrait";
 
@@ -160,9 +167,65 @@ export interface User {
   email: string;
   name: string;
   role: Role;
-  /** Empty = all locations (super_admin). Otherwise scoped locations. */
+  /** Empty = all locations for org-wide roles. Otherwise scoped locations. */
   locationIds: string[];
+  status: MemberStatus;
+  lastActiveAt: string | null;
   createdAt: string;
+}
+
+export interface TeamInvitation {
+  id: string;
+  organizationId: string;
+  email: string;
+  name: string;
+  role: Role;
+  locationIds: string[];
+  status: "pending" | "accepted" | "cancelled" | "expired";
+  message: string | null;
+  invitedByUserId: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export type MediaKind =
+  | "image"
+  | "video"
+  | "audio"
+  | "logo"
+  | "promo"
+  | "other";
+
+export interface MediaFolder {
+  id: string;
+  organizationId: string;
+  parentId: string | null;
+  name: string;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MediaAsset {
+  id: string;
+  organizationId: string;
+  folderId: string | null;
+  name: string;
+  originalFilename: string;
+  kind: MediaKind;
+  mimeType: string;
+  sizeBytes: number;
+  storageKey: string;
+  url: string;
+  width: number | null;
+  height: number | null;
+  durationSeconds: number | null;
+  tags: string[];
+  usageCount: number;
+  uploadedByUserId: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MockSession {

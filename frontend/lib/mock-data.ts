@@ -249,6 +249,8 @@ export const users: User[] = [
     name: "Alex Owner",
     role: "super_admin",
     locationIds: [],
+    status: "active",
+    lastActiveAt: "2026-08-21T10:00:00.000Z",
     createdAt: "2026-01-10T10:05:00.000Z",
   },
   {
@@ -259,6 +261,8 @@ export const users: User[] = [
     name: "Jordan Admin",
     role: "admin",
     locationIds: ["loc_downtown", "loc_airport"],
+    status: "active",
+    lastActiveAt: "2026-08-20T18:00:00.000Z",
     createdAt: "2026-01-11T10:00:00.000Z",
   },
   {
@@ -269,7 +273,49 @@ export const users: User[] = [
     name: "Sam Manager",
     role: "location_manager",
     locationIds: ["loc_downtown"],
+    status: "active",
+    lastActiveAt: "2026-08-19T12:00:00.000Z",
     createdAt: "2026-01-12T10:00:00.000Z",
+  },
+  {
+    id: "user_content",
+    clerkUserId: "user_clerk_content_demo",
+    organizationId: "org_demo_001",
+    email: "content@harborhearth.demo",
+    name: "Casey Content",
+    role: "content_manager",
+    locationIds: [],
+    status: "active",
+    lastActiveAt: "2026-08-18T09:00:00.000Z",
+    createdAt: "2026-02-01T10:00:00.000Z",
+  },
+  {
+    id: "user_viewer",
+    clerkUserId: "user_clerk_viewer_demo",
+    organizationId: "org_demo_001",
+    email: "viewer@harborhearth.demo",
+    name: "Riley Viewer",
+    role: "viewer",
+    locationIds: ["loc_downtown"],
+    status: "active",
+    lastActiveAt: null,
+    createdAt: "2026-02-15T10:00:00.000Z",
+  },
+];
+
+export const teamInvitations: import("@/lib/types/schema").TeamInvitation[] = [
+  {
+    id: "inv_pending_1",
+    organizationId: "org_demo_001",
+    email: "newhire@harborhearth.demo",
+    name: "Pat Pending",
+    role: "location_manager",
+    locationIds: ["loc_airport"],
+    status: "pending",
+    message: "Welcome to the airport crew.",
+    invitedByUserId: "user_super",
+    expiresAt: "2026-09-01T00:00:00.000Z",
+    createdAt: "2026-08-15T10:00:00.000Z",
   },
 ];
 

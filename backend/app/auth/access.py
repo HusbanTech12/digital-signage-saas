@@ -4,12 +4,21 @@ from fastapi import HTTPException, status
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.permissions import (
+    ALWAYS_ALL_LOCATIONS_ROLES,
+    has_permission,
+)
 from db.models import Location, Screen, User
 
-Role = str  # super_admin | admin | location_manager
+Role = str  # super_admin | admin | location_manager | content_manager | viewer
 
 
 def require_roles(user: User, *roles: Role) -> None:
+    if getattr(user, "status", "active") == "suspended":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is suspended",
+        )
     if user.role not in roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -26,9 +35,12 @@ def assert_same_org(user: User, organization_id: str) -> None:
 
 
 def can_access_location(user: User, location_id: str) -> bool:
-    if user.role in ("super_admin", "admin"):
+    if user.role in ALWAYS_ALL_LOCATIONS_ROLES:
         return True
-    return location_id in (user.location_ids or [])
+    ids = user.location_ids or []
+    if user.role == "content_manager" and not ids:
+        return True
+    return location_id in ids
 
 
 def assert_location_access(user: User, location_id: str) -> None:
@@ -42,17 +54,22 @@ def assert_location_access(user: User, location_id: str) -> None:
 def scope_locations_query(user: User) -> Select[tuple[Location]]:
     """Return a Select already filtered to locations the user may see."""
     stmt = select(Location).where(Location.organization_id == user.organization_id)
-    if user.role == "location_manager":
-        stmt = stmt.where(Location.id.in_(user.location_ids or []))
-    return stmt
+    if user.role in ALWAYS_ALL_LOCATIONS_ROLES:
+        return stmt
+    if user.role == "content_manager" and not (user.location_ids or []):
+        return stmt
+    ids = user.location_ids or []
+    return stmt.where(Location.id.in_(ids))
 
 
 def scope_screens_query(user: User) -> Select[tuple[Screen]]:
     stmt = select(Screen).where(Screen.organization_id == user.organization_id)
-    if user.role == "location_manager":
-        ids = user.location_ids or []
-        stmt = stmt.where(Screen.location_id.in_(ids))
-    return stmt
+    if user.role in ALWAYS_ALL_LOCATIONS_ROLES:
+        return stmt
+    if user.role == "content_manager" and not (user.location_ids or []):
+        return stmt
+    ids = user.location_ids or []
+    return stmt.where(Screen.location_id.in_(ids))
 
 
 async def get_org_location_or_404(
@@ -85,9 +102,17 @@ async def get_org_screen_or_404(
         raise HTTPException(status_code=404, detail="Screen not found")
     if screen.location_id:
         assert_location_access(user, screen.location_id)
-    elif user.role == "location_manager":
+    elif user.role not in ALWAYS_ALL_LOCATIONS_ROLES and user.role != "content_manager":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No access to unpaired screens outside your locations",
         )
     return screen
+
+
+def require_perm(user: User, permission: str) -> None:
+    if not has_permission(user, permission):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Missing permission: {permission}",
+        )

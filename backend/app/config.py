@@ -28,6 +28,22 @@ class Settings(BaseSettings):
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
 
+    # Team invitations
+    frontend_url: str = "http://localhost:3000"
+    invite_expiry_days: int = 7
+    resend_api_key: str = ""
+    email_from: str = ""
+
+    # Media library (S3-compatible; falls back to local disk when unset)
+    media_local_root: str = "uploads"
+    s3_bucket: str = ""
+    s3_region: str = "auto"
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_public_base_url: str = ""
+    s3_acl: str = ""
+
     # When true (development), accept Authorization: Bearer dev:<clerk_user_id>
     # so the dashboard role switcher can hit real APIs without a Clerk JWT.
     dev_auth_bypass: bool = True
@@ -47,6 +63,7 @@ class Settings(BaseSettings):
         for extra in (
             "https://digital-signage-web-rho.vercel.app",
             "https://digital-signage-web.vercel.app",
+            "https://digital-menu-brai.vercel.app",
         ):
             if extra not in origins:
                 origins.append(extra)

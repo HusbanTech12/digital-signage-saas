@@ -47,6 +47,9 @@ async def bootstrap_context(
     org = await db.get(Organization, user.organization_id)
     if org is None:
         raise HTTPException(status_code=404, detail="Organization not found")
+    user.last_active_at = _utcnow()
+    await db.commit()
+    await db.refresh(user)
     return {
         "user": UserOut.model_validate(user).model_dump(by_alias=True, mode="json"),
         "organization": OrganizationOut.model_validate(org).model_dump(
@@ -125,6 +128,8 @@ async def onboard_me(
         name=name,
         role=role,
         location_ids=location_ids,
+        status="active",
+        last_active_at=now,
         created_at=now,
     )
     db.add(user)

@@ -7,6 +7,7 @@ const isAuthRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
 ]);
+// /invite stays public so guests can preview; accept requires Clerk after sign-in
 
 export default clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();

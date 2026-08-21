@@ -5,7 +5,13 @@ import { useMockSession } from "@/components/providers/mock-session-provider";
 import type { Role } from "@/lib/types/schema";
 import { ROLE_LABELS } from "@/lib/mock-session";
 
-const ROLES: Role[] = ["super_admin", "admin", "location_manager"];
+const ROLES: Role[] = [
+  "super_admin",
+  "admin",
+  "location_manager",
+  "content_manager",
+  "viewer",
+];
 
 export function AppNavbar() {
   const { session, role, setRole, roleLabel } = useMockSession();

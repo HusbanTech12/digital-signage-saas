@@ -11,4 +11,6 @@ class UserOut(CamelModel):
     name: str
     role: str
     location_ids: list[str]
+    status: str = "active"
+    last_active_at: datetime | None = None
     created_at: datetime

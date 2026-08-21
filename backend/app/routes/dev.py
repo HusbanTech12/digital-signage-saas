@@ -356,6 +356,7 @@ async def seed_demo_data(
             name="Alex Owner",
             role="super_admin",
             location_ids=[],
+            status="active",
             created_at=datetime(2026, 1, 10, 10, 5, tzinfo=timezone.utc),
         ),
         User(
@@ -366,6 +367,7 @@ async def seed_demo_data(
             name="Jordan Admin",
             role="admin",
             location_ids=["loc_downtown", "loc_airport"],
+            status="active",
             created_at=datetime(2026, 1, 11, 10, 0, tzinfo=timezone.utc),
         ),
         User(
@@ -376,6 +378,7 @@ async def seed_demo_data(
             name="Sam Manager",
             role="location_manager",
             location_ids=["loc_downtown"],
+            status="active",
             created_at=datetime(2026, 1, 12, 10, 0, tzinfo=timezone.utc),
         ),
     ):

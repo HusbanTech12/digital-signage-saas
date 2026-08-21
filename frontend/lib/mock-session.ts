@@ -10,6 +10,14 @@ const STORAGE_KEY = "dss_mock_role";
 
 const DEFAULT_ROLE: Role = "super_admin";
 
+const ALL_ROLES: Role[] = [
+  "super_admin",
+  "admin",
+  "location_manager",
+  "content_manager",
+  "viewer",
+];
+
 function userForRole(role: Role) {
   return users.find((u) => u.role === role) ?? users[0];
 }
@@ -23,13 +31,7 @@ export function getMockSession(role: Role = DEFAULT_ROLE): MockSession {
 export function readStoredRole(): Role {
   if (typeof window === "undefined") return DEFAULT_ROLE;
   const stored = window.localStorage.getItem(STORAGE_KEY) as Role | null;
-  if (
-    stored === "super_admin" ||
-    stored === "admin" ||
-    stored === "location_manager"
-  ) {
-    return stored;
-  }
+  if (stored && ALL_ROLES.includes(stored)) return stored;
   return DEFAULT_ROLE;
 }
 
@@ -39,7 +41,11 @@ export function writeStoredRole(role: Role) {
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
-  super_admin: "Super Admin",
-  admin: "Admin",
+  super_admin: "Organization Owner",
+  admin: "Organization Admin",
   location_manager: "Location Manager",
+  content_manager: "Content Manager",
+  viewer: "Viewer",
 };
+
+export const ASSIGNABLE_ROLES: Role[] = ALL_ROLES;

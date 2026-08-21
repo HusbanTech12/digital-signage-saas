@@ -9,13 +9,16 @@ from app.config import get_settings
 from app.routes import (
     dev,
     health,
+    invitations,
     locations,
     me,
+    media,
     menus,
     organizations,
     pairing,
     pos,
     screens,
+    team,
     templates,
     themes,
     ws,
@@ -99,8 +102,11 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
-        # Cover Vercel production + preview aliases for the web project
-        allow_origin_regex=r"https://digital-signage-web(-[a-z0-9-]+)?\.vercel\.app",
+        # Cover Vercel production + preview aliases for known web projects
+        allow_origin_regex=(
+            r"https://(digital-signage-web|digital-menu-brai|digital-menu)"
+            r"(-[a-z0-9-]+)?\.vercel\.app"
+        ),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -118,6 +124,9 @@ def create_app() -> FastAPI:
     app.include_router(themes.router)
     app.include_router(pos.router)
     app.include_router(pos.webhook_router)
+    app.include_router(team.router)
+    app.include_router(invitations.router)
+    app.include_router(media.router)
     app.include_router(dev.router)
 
     return app
