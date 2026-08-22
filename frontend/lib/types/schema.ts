@@ -44,6 +44,17 @@ export interface Screen {
   activeMenuId: string | null;
   activeTemplateId: string | null;
   activePlaylistId?: string | null;
+  lastSyncAt?: string | null;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+  contentVersion?: number | null;
+  contentUpdatedAt?: string | null;
+  currentContentSummary?: string | null;
+  clientAppVersion?: string | null;
+  pendingCommand?: string | null;
+  pendingCommandId?: string | null;
+  pendingCommandAt?: string | null;
+  pairingExpiresAt?: string | null;
   createdAt: string;
 }
 

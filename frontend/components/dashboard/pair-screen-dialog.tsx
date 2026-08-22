@@ -111,7 +111,9 @@ export function PairScreenDialog({
         <h2 className="text-lg font-semibold tracking-tight">Pair a screen</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Open <code className="text-xs">/pair</code> on the display, then enter
-          the 6-digit code here. Demo seed code:{" "}
+          the 6-digit code here before it expires (about 15 minutes). If the
+          code expired or pairing failed, tap “Generate a new code” on the
+          display and try again. Demo seed code:{" "}
           <span className="font-medium text-foreground">482917</span>
         </p>
 

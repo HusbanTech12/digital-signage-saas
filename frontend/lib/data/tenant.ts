@@ -6,6 +6,7 @@
 import { ApiError } from "@/lib/api/client";
 import {
   completePairingApi,
+  clearScreenErrorApi,
   createLocationApi,
   createOrganizationApi,
   deleteLocationApi,
@@ -15,6 +16,7 @@ import {
   listOrganizationsApi,
   listScreens,
   onboardMeApi,
+  requestScreenRefreshApi,
   startPairingSessionApi,
   updateLocationApi,
   updateOrganizationApi,
@@ -241,6 +243,40 @@ export async function deleteScreen(
     return;
   }
   deleteScreenMock(screenId);
+}
+
+export async function requestScreenRefresh(
+  screenId: string,
+  token?: Token | null,
+): Promise<void> {
+  if (useLiveApi() && token) {
+    await withProvisioned(token, () =>
+      requestScreenRefreshApi(token, screenId),
+    );
+    return;
+  }
+  // Mock: no-op — there is no live kiosk process to wake
+}
+
+export async function clearScreenError(
+  screenId: string,
+  token?: Token | null,
+): Promise<Screen> {
+  if (useLiveApi() && token) {
+    const screen = await withProvisioned(token, () =>
+      clearScreenErrorApi(token, screenId),
+    );
+    upsertScreen(screen);
+    return screen;
+  }
+  const existing = updateScreenMock(screenId, {});
+  const cleared = {
+    ...existing,
+    lastError: null,
+    lastErrorAt: null,
+  };
+  upsertScreen(cleared);
+  return cleared;
 }
 
 export async function startPairingSession(input?: {

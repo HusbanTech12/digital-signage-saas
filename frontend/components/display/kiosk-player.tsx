@@ -8,7 +8,10 @@ import { PlaylistPlayer } from "@/components/display/playlist-player";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 import { useLiveApi } from "@/lib/api/config";
-import { readDisplayCache, writeDisplayCache } from "@/lib/display/cache";
+import {
+  readDisplayCache,
+  syncDisplayCache,
+} from "@/lib/display/cache";
 import { touchScreenHeartbeat } from "@/lib/display/heartbeat";
 import { connectScreenRealtime } from "@/lib/display/realtime";
 import { saveDeviceToken } from "@/lib/display/device-token";
@@ -21,6 +24,8 @@ import { subscribeMockStore } from "@/lib/mock-api/store";
 
 const POLL_MS = 4000;
 const HEARTBEAT_MS = 15000;
+/** When offline, retry reconnect less aggressively to save CPU/radio. */
+const OFFLINE_POLL_MS = 12000;
 
 export function KioskPlayer({
   screenId,
@@ -42,8 +47,26 @@ export function KioskPlayer({
   const applyPayload = useCallback(async (next: DisplayPayload) => {
     setPayload(next);
     setSource("live");
-    await writeDisplayCache(next);
+    // Persist JSON immediately; media prefetch runs in background
+    await syncDisplayCache(next);
   }, []);
+
+  const applyWallSync = useCallback(
+    (sync: { groupId: string; syncEpochMs: number; contentMode?: string }) => {
+      setPayload((prev) => {
+        if (!prev?.wall || prev.wall.groupId !== sync.groupId) return prev;
+        return {
+          ...prev,
+          wall: {
+            ...prev.wall,
+            syncEpochMs: sync.syncEpochMs,
+            contentMode: sync.contentMode ?? prev.wall.contentMode,
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const refresh = useCallback(async () => {
     const browserOnline =
@@ -131,6 +154,22 @@ export function KioskPlayer({
     const deviceToken =
       initialDeviceToken || getScreenDeviceToken(screenId) || null;
     let disposeWs: (() => void) | undefined;
+    let ackedCommandId: string | null = null;
+
+    const runRemoteRefresh = async (commandId: string) => {
+      await refresh();
+      ackedCommandId = commandId;
+      const result = await touchScreenHeartbeat(screenId, {
+        ackedCommandId: commandId,
+      });
+      if (result?.pendingRefreshCommandId) {
+        // Still pending — try again on next heartbeat cycle
+        ackedCommandId = result.pendingRefreshCommandId;
+      } else {
+        ackedCommandId = null;
+      }
+    };
+
     if (deviceToken) {
       saveDeviceToken(screenId, deviceToken);
       disposeWs = connectScreenRealtime(screenId, deviceToken, {
@@ -138,19 +177,46 @@ export function KioskPlayer({
           void applyPayload(next);
           setBooting(false);
         },
+        onRefreshCommand: (commandId) => {
+          void runRemoteRefresh(commandId);
+        },
+        onWallSync: applyWallSync,
         onStatus: setWsStatus,
       });
     }
 
+    const intervalMs =
+      typeof navigator !== "undefined" && !navigator.onLine
+        ? OFFLINE_POLL_MS
+        : POLL_MS;
     const pollId = window.setInterval(() => {
       void refresh();
-    }, POLL_MS);
+    }, intervalMs);
+
+    const heartbeatId = window.setInterval(() => {
+      void (async () => {
+        const result = await touchScreenHeartbeat(screenId, {
+          ackedCommandId,
+        });
+        if (result?.pendingRefreshCommandId) {
+          await runRemoteRefresh(result.pendingRefreshCommandId);
+        }
+      })();
+    }, HEARTBEAT_MS);
+
+    void (async () => {
+      const result = await touchScreenHeartbeat(screenId);
+      if (result?.pendingRefreshCommandId) {
+        await runRemoteRefresh(result.pendingRefreshCommandId);
+      }
+    })();
 
     return () => {
       disposeWs?.();
       window.clearInterval(pollId);
+      window.clearInterval(heartbeatId);
     };
-  }, [applyPayload, initialDeviceToken, liveApi, refresh, screenId]);
+  }, [applyPayload, applyWallSync, initialDeviceToken, liveApi, online, refresh, screenId]);
 
   useEffect(() => {
     const onOnline = () => void refresh();
@@ -163,14 +229,16 @@ export function KioskPlayer({
     };
   }, [refresh]);
 
+  // Mock mode: lightweight heartbeat only
   useEffect(() => {
+    if (liveApi) return;
     if (source !== "live" && source !== "cache") return;
     void touchScreenHeartbeat(screenId);
     const id = window.setInterval(() => {
       void touchScreenHeartbeat(screenId);
     }, HEARTBEAT_MS);
     return () => window.clearInterval(id);
-  }, [screenId, source]);
+  }, [liveApi, screenId, source]);
 
   if (booting && !payload) {
     return (
@@ -237,6 +305,44 @@ export function KioskPlayer({
       ? payload.playlist
       : null;
 
+  const wall = payload.wall ?? null;
+  const tiled =
+    wall &&
+    wall.contentMode === "tiled" &&
+    wall.rows > 0 &&
+    wall.cols > 0;
+
+  const board = playlist ? (
+    <PlaylistPlayer
+      playlist={playlist}
+      statusLabel={statusLabel}
+      wall={wall}
+    />
+  ) : showCanvas && payload.canvasJson ? (
+    <div className="flex min-h-screen items-center justify-center p-0">
+      <CanvasBoard
+        canvasJson={payload.canvasJson}
+        className="h-auto w-full max-w-[100vw]"
+        animations={animations}
+        contentKey={contentKey}
+      />
+    </div>
+  ) : usePremium && displayConfig ? (
+    <PremiumMenuBoard
+      items={payload.items}
+      config={displayConfig}
+      statusLabel={statusLabel}
+      contentKey={contentKey}
+    />
+  ) : (
+    <MenuFallbackBoard
+      title={payload.menuName ?? payload.screenName}
+      items={payload.items}
+      animations={animations}
+      contentKey={contentKey}
+    />
+  );
+
   return (
     <div
       className={`relative min-h-screen overflow-hidden bg-zinc-950 text-zinc-50 ${
@@ -246,36 +352,34 @@ export function KioskPlayer({
       {(source === "cache" || !online) && (
         <div className="absolute top-0 right-0 left-0 z-20 bg-amber-500/90 px-4 py-2 text-center text-sm font-medium text-zinc-950">
           {!online
-            ? "Offline — showing last saved menu"
-            : "Showing cached menu — reconnecting…"}
+            ? "Offline — playing cached content (menu + media)"
+            : "Showing cached content — syncing…"}
         </div>
       )}
 
-      {playlist ? (
-        <PlaylistPlayer playlist={playlist} statusLabel={statusLabel} />
-      ) : showCanvas && payload.canvasJson ? (
-        <div className="flex min-h-screen items-center justify-center p-0">
-          <CanvasBoard
-            canvasJson={payload.canvasJson}
-            className="h-auto w-full max-w-[100vw]"
-            animations={animations}
-            contentKey={contentKey}
-          />
+      {tiled ? (
+        <div className="relative h-screen w-screen overflow-hidden">
+          <div
+            style={{
+              width: `${wall.cols * 100}%`,
+              height: `${wall.rows * 100}%`,
+              marginLeft: `-${wall.col * 100}%`,
+              marginTop: `-${wall.row * 100}%`,
+              transform:
+                wall.bezelCompensationPct && wall.bezelCompensationPct > 0
+                  ? `scale(${1 + wall.bezelCompensationPct / 100})`
+                  : undefined,
+              transformOrigin: "center center",
+            }}
+          >
+            {board}
+          </div>
+          <div className="pointer-events-none absolute top-3 left-3 z-20 font-mono text-[10px] tracking-wide text-zinc-500 uppercase">
+            Wall {wall.groupName} · {wall.row + 1},{wall.col + 1}
+          </div>
         </div>
-      ) : usePremium && displayConfig ? (
-        <PremiumMenuBoard
-          items={payload.items}
-          config={displayConfig}
-          statusLabel={statusLabel}
-          contentKey={contentKey}
-        />
       ) : (
-        <MenuFallbackBoard
-          title={payload.menuName ?? payload.screenName}
-          items={payload.items}
-          animations={animations}
-          contentKey={contentKey}
-        />
+        board
       )}
 
       {!playlist && showCanvas && payload.items.length > 0 ? (

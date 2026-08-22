@@ -106,6 +106,7 @@ async def complete_pairing(
     if body.orientation is not None:
         screen.orientation = body.orientation
     screen.pairing_code = None
+    screen.pairing_expires_at = None
     screen.status = "online"
     screen.last_heartbeat = utcnow()
 

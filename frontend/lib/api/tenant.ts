@@ -121,11 +121,48 @@ export function getScreenPublicApi(screenId: string, deviceToken: string) {
 export function touchScreenHeartbeatApi(
   screenId: string,
   deviceToken: string,
+  body?: {
+    lastSyncAt?: string | null;
+    lastSyncError?: string | null;
+    contentVersion?: number | null;
+    contentUpdatedAt?: string | null;
+    currentContentSummary?: string | null;
+    clientAppVersion?: string | null;
+    ackedCommandId?: string | null;
+  },
 ) {
   return apiFetch<Screen>(`/api/v1/screens/${screenId}/heartbeat`, {
     method: "POST",
     auth: false,
-    body: { deviceToken },
+    body: {
+      deviceToken,
+      lastSyncAt: body?.lastSyncAt ?? undefined,
+      lastSyncError: body?.lastSyncError ?? undefined,
+      contentVersion: body?.contentVersion ?? undefined,
+      contentUpdatedAt: body?.contentUpdatedAt ?? undefined,
+      currentContentSummary: body?.currentContentSummary ?? undefined,
+      clientAppVersion: body?.clientAppVersion ?? undefined,
+      ackedCommandId: body?.ackedCommandId ?? undefined,
+    },
+  });
+}
+
+export function requestScreenRefreshApi(token: AuthToken, screenId: string) {
+  return apiFetch<{
+    screenId: string;
+    command: string;
+    commandId: string;
+    createdAt: string;
+  }>(`/api/v1/screens/${screenId}/commands/refresh`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function clearScreenErrorApi(token: AuthToken, screenId: string) {
+  return apiFetch<Screen>(`/api/v1/screens/${screenId}/commands/clear-error`, {
+    method: "POST",
+    token,
   });
 }
 

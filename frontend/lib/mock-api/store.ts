@@ -307,6 +307,7 @@ export function startPairingSession(input?: {
     status: "pairing",
     activeMenuId: null,
     activeTemplateId: null,
+    pairingExpiresAt: expiresAt,
     createdAt,
   };
 

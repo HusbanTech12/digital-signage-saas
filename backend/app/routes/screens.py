@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,14 +11,32 @@ from app.auth.access import (
     scope_screens_query,
 )
 from app.auth.clerk import get_current_user
-from app.schemas.display import DisplayPayloadOut
-from app.schemas.screen import ScreenHeartbeatIn, ScreenOut, ScreenUpdate
+from app.auth.permissions import SCREENS_UPDATE, require_permission
+from app.schemas.display import DisplayPayloadOut, RealtimeEvent
+from app.schemas.screen import (
+    ScreenCommandOut,
+    ScreenHeartbeatIn,
+    ScreenHeartbeatOut,
+    ScreenOut,
+    ScreenUpdate,
+)
 from app.services.display_content import build_display_payload
 from app.services.pairing import utcnow
+from app.services.realtime import get_realtime_hub
+from app.utils.ids import new_id
 from db.models import Location, Screen, User
 from db.session import get_db
 
 router = APIRouter(prefix="/api/v1/screens", tags=["screens"])
+
+
+def _truncate_error(msg: str | None, limit: int = 1000) -> str | None:
+    if not msg:
+        return None
+    text = msg.strip()
+    if not text:
+        return None
+    return text[:limit]
 
 
 @router.get("", response_model=list[ScreenOut])
@@ -145,7 +165,7 @@ async def delete_screen(
     await db.commit()
 
 
-@router.post("/{screen_id}/heartbeat", response_model=ScreenOut)
+@router.post("/{screen_id}/heartbeat", response_model=ScreenHeartbeatOut)
 async def touch_heartbeat(
     screen_id: str,
     body: ScreenHeartbeatIn,
@@ -166,9 +186,102 @@ async def touch_heartbeat(
             detail="Screen is not paired yet",
         )
 
-    screen.last_heartbeat = utcnow()
+    now = utcnow()
+    screen.last_heartbeat = now
     if screen.status == "offline":
         screen.status = "online"
+
+    if body.last_sync_at is not None:
+        screen.last_sync_at = body.last_sync_at
+    if body.content_version is not None:
+        screen.content_version = body.content_version
+    if body.content_updated_at is not None:
+        screen.content_updated_at = body.content_updated_at
+    if body.current_content_summary is not None:
+        screen.current_content_summary = body.current_content_summary[:512]
+    if body.client_app_version is not None:
+        screen.client_app_version = body.client_app_version[:64]
+
+    err = _truncate_error(body.last_sync_error)
+    if err:
+        screen.last_error = err
+        screen.last_error_at = now
+    elif body.last_sync_at is not None and not body.last_sync_error:
+        screen.last_error = None
+        screen.last_error_at = None
+
+    if (
+        body.acked_command_id
+        and screen.pending_command_id
+        and body.acked_command_id == screen.pending_command_id
+    ):
+        screen.pending_command = None
+        screen.pending_command_id = None
+        screen.pending_command_at = None
+
+    await db.commit()
+    await db.refresh(screen)
+    return screen
+
+
+@router.post(
+    "/{screen_id}/commands/refresh",
+    response_model=ScreenCommandOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def request_remote_refresh(
+    screen_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ScreenCommandOut:
+    """Queue a remote refresh; kiosk picks up via WebSocket or next heartbeat."""
+    require_permission(user, SCREENS_UPDATE)
+    screen = await get_org_screen_or_404(db, user, screen_id)
+    if screen.location_id is None or screen.status == "pairing":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Screen must be paired before remote refresh",
+        )
+
+    now = utcnow()
+    command_id = new_id("cmd")
+    screen.pending_command = "refresh"
+    screen.pending_command_id = command_id
+    screen.pending_command_at = now
+    await db.commit()
+    await db.refresh(screen)
+
+    hub = get_realtime_hub()
+    await hub.publish_event(
+        RealtimeEvent(
+            type="device.refresh",
+            screen_id=screen.id,
+            payload={
+                "command": "refresh",
+                "commandId": command_id,
+            },
+            ts=now if isinstance(now, datetime) else datetime.now(timezone.utc),
+        )
+    )
+
+    return ScreenCommandOut(
+        screen_id=screen.id,
+        command="refresh",
+        command_id=command_id,
+        created_at=screen.pending_command_at or now,
+    )
+
+
+@router.post("/{screen_id}/commands/clear-error", response_model=ScreenOut)
+async def clear_screen_error(
+    screen_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Screen:
+    require_permission(user, SCREENS_UPDATE)
+    screen = await get_org_screen_or_404(db, user, screen_id)
+    screen.last_error = None
+    screen.last_error_at = None
     await db.commit()
     await db.refresh(screen)
     return screen

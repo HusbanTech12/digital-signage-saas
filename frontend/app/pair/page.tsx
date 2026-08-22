@@ -19,6 +19,8 @@ export default function PairPage() {
   const [screenId, setScreenId] = useState<string | null>(null);
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const started = useRef(false);
 
@@ -34,6 +36,7 @@ export default function PairPage() {
         setScreenId(screen.id);
         setDeviceToken(screen.deviceToken);
         setCode(pairing.code);
+        setExpiresAt(pairing.expiresAt);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Could not start pairing.",
@@ -41,6 +44,23 @@ export default function PairPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setSecondsLeft(null);
+      return;
+    }
+    const tick = () => {
+      const left = Math.max(
+        0,
+        Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000),
+      );
+      setSecondsLeft(left);
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [expiresAt]);
 
   // Live API: poll public screen status so this tab sees pairing complete.
   useEffect(() => {
@@ -51,6 +71,9 @@ export default function PairPage() {
         const screen = await getScreenPublicApi(screenId, deviceToken);
         if (cancelled) return;
         upsertScreen(screen);
+        if (screen.pairingExpiresAt) {
+          setExpiresAt(screen.pairingExpiresAt);
+        }
       } catch {
         /* keep showing code while backend is briefly unavailable */
       }
@@ -67,6 +90,7 @@ export default function PairPage() {
   const paired = Boolean(
     screen && screen.status === "online" && screen.locationId !== null,
   );
+  const expired = secondsLeft === 0;
 
   useEffect(() => {
     if (!paired || !screen) return;
@@ -86,9 +110,16 @@ export default function PairPage() {
       setScreenId(next.id);
       setDeviceToken(next.deviceToken);
       setCode(pairing.code);
+      setExpiresAt(pairing.expiresAt);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not refresh code.");
     }
+  }
+
+  function formatCountdown(total: number) {
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
   return (
@@ -108,20 +139,36 @@ export default function PairPage() {
       ) : (
         <div className="mt-10 max-w-xl text-center">
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-            Enter this code in your dashboard
+            {expired
+              ? "Code expired"
+              : "Enter this code in your dashboard"}
           </h1>
           <p className="mt-3 text-zinc-400">
-            Screens → Enter code · assign a location · done
+            {expired
+              ? "Generate a new code, then enter it under Screens → Enter code."
+              : "Screens → Enter code · assign a location · done"}
           </p>
 
           <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900/80 px-8 py-10">
             {error ? (
               <p className="text-rose-400">{error}</p>
+            ) : expired ? (
+              <p className="text-amber-300">
+                This pairing session timed out. Refresh to continue.
+              </p>
             ) : (
               <p className="font-mono text-5xl tracking-[0.35em] tabular-nums md:text-6xl">
                 {code ?? "······"}
               </p>
             )}
+            {!error && !expired && secondsLeft != null ? (
+              <p className="mt-4 text-sm text-zinc-500">
+                Expires in{" "}
+                <span className="tabular-nums text-zinc-300">
+                  {formatCountdown(secondsLeft)}
+                </span>
+              </p>
+            ) : null}
           </div>
 
           <button
@@ -129,8 +176,14 @@ export default function PairPage() {
             onClick={() => void refreshCode()}
             className="mt-8 text-sm text-zinc-400 underline-offset-4 hover:text-zinc-200 hover:underline"
           >
-            Generate a new code
+            {expired ? "Generate a new code" : "Generate a new code"}
           </button>
+          {expired ? (
+            <p className="mt-4 text-xs text-zinc-500">
+              If pairing fails repeatedly, check the display can reach the API,
+              then retry with a fresh code.
+            </p>
+          ) : null}
         </div>
       )}
     </div>

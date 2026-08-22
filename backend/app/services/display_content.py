@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.schemas.display import DisplayPayloadOut
+from app.schemas.display import DisplayPayloadOut, WallInfoOut
 from app.schemas.menu import MenuItemOut
 from app.schemas.playlist import PlaylistPlaybackOut, PlaylistSlideOut
 from db.models import MediaAsset, Menu, MenuItem, Playlist, Screen, Template
@@ -342,4 +342,25 @@ async def build_display_payload(
         items=items,
         updated_at=_utcnow(),
         playlist=playlist_playback,
+        wall=await _wall_for_screen(db, screen),
+    )
+
+
+async def _wall_for_screen(db: AsyncSession, screen: Screen) -> WallInfoOut | None:
+    from app.services.screen_groups import wall_info_for_screen
+
+    info = await wall_info_for_screen(db, screen)
+    if not info:
+        return None
+    return WallInfoOut(
+        group_id=info["group_id"],
+        group_name=info["group_name"],
+        layout=info["layout"],
+        rows=info["rows"],
+        cols=info["cols"],
+        row=info["row"],
+        col=info["col"],
+        content_mode=info["content_mode"],
+        sync_epoch_ms=info.get("sync_epoch_ms"),
+        bezel_compensation_pct=float(info.get("bezel_compensation_pct") or 0),
     )

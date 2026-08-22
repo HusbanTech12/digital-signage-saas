@@ -23,14 +23,23 @@ def pairing_expires_at(started_at: datetime) -> datetime:
     return started_at + PAIRING_TTL
 
 
+def _effective_pairing_expires(screen: Screen) -> datetime:
+    if screen.pairing_expires_at is not None:
+        expires = screen.pairing_expires_at
+        if expires.tzinfo is None:
+            return expires.replace(tzinfo=timezone.utc)
+        return expires
+    started = screen.last_heartbeat or screen.created_at
+    return pairing_expires_at(started)
+
+
 def assert_pairing_not_expired(screen: Screen) -> None:
     if screen.status != "pairing" or not screen.pairing_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired pairing code.",
         )
-    started = screen.last_heartbeat or screen.created_at
-    if pairing_expires_at(started) < utcnow():
+    if _effective_pairing_expires(screen) < utcnow():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Pairing code expired. Refresh the screen and try again.",
@@ -43,7 +52,7 @@ def to_pending_pairing(screen: Screen) -> PendingPairingOut:
         code=screen.pairing_code or "",
         screen_id=screen.id,
         created_at=started,
-        expires_at=pairing_expires_at(started),
+        expires_at=_effective_pairing_expires(screen),
     )
 
 
@@ -73,6 +82,7 @@ async def create_pairing_session(
         code = random_pairing_code()
 
     now = utcnow()
+    expires = pairing_expires_at(now)
     screen = Screen(
         id=new_id("scr"),
         location_id=None,
@@ -86,6 +96,7 @@ async def create_pairing_session(
         status="pairing",
         active_menu_id=None,
         active_template_id=None,
+        pairing_expires_at=expires,
         created_at=now,
     )
     db.add(screen)

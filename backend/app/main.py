@@ -19,6 +19,7 @@ from app.routes import (
     pairing,
     playlists,
     pos,
+    screen_groups,
     screens,
     team,
     templates,
@@ -119,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(organizations.router)
     app.include_router(locations.router)
     app.include_router(screens.router)
+    app.include_router(screen_groups.router)
     app.include_router(ws.router)
     app.include_router(pairing.router)
     app.include_router(menus.router)

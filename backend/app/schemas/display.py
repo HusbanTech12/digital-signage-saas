@@ -6,6 +6,21 @@ from app.schemas.menu import MenuItemOut
 from app.schemas.playlist import PlaylistPlaybackOut
 
 
+class WallInfoOut(CamelModel):
+    """Tile + sync metadata when the screen belongs to a video wall."""
+
+    group_id: str
+    group_name: str
+    layout: str
+    rows: int
+    cols: int
+    row: int
+    col: int
+    content_mode: str
+    sync_epoch_ms: int | None = None
+    bezel_compensation_pct: float = 0.0
+
+
 class DisplayPayloadOut(CamelModel):
     """Kiosk snapshot — matches frontend DisplayPayload (camelCase)."""
 
@@ -24,6 +39,7 @@ class DisplayPayloadOut(CamelModel):
     items: list[MenuItemOut]
     updated_at: datetime
     playlist: PlaylistPlaybackOut | None = None
+    wall: WallInfoOut | None = None
 
 
 class RealtimeEvent(CamelModel):

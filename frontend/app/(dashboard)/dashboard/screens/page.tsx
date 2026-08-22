@@ -18,7 +18,7 @@ import {
   filterLocationsForUser,
   filterScreensForUser,
 } from "@/lib/access";
-import { deleteScreen, updateScreen } from "@/lib/data/tenant";
+import { deleteScreen, requestScreenRefresh, updateScreen } from "@/lib/data/tenant";
 import {
   CUSTOM_LCD_PRESET_ID,
   LCD_PRESETS,
@@ -35,6 +35,7 @@ export default function ScreensPage() {
   const [editing, setEditing] = useState<Screen | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filterLocationId, setFilterLocationId] = useState<string>("all");
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
   const visibleLocations = useMemo(
     () => filterLocationsForUser(locations, session.user),
@@ -88,15 +89,45 @@ export default function ScreensPage() {
     }
   }
 
+  async function handleRefresh(screen: Screen) {
+    setError(null);
+    setRefreshingId(screen.id);
+    try {
+      const token = await getApiToken();
+      await requestScreenRefresh(screen.id, token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Refresh failed.");
+    } finally {
+      setRefreshingId(null);
+    }
+  }
+
+  function formatRelative(iso: string | null | undefined) {
+    if (!iso) return "—";
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return "—";
+    const diff = Date.now() - t;
+    if (diff < 60_000) return "Just now";
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+    return new Date(iso).toLocaleString();
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Screens"
-        description="Pair devices, match LCD type to your TV, and monitor online status."
+        description="Pair devices, monitor health and sync, and remotely refresh kiosks."
         actions={
           <>
             <Button variant="outline" render={<Link href="/dashboard/setup" />}>
               Stick setup
+            </Button>
+            <Button
+              variant="outline"
+              render={<Link href="/dashboard/screen-groups" />}
+            >
+              Video walls
             </Button>
             <Button variant="outline" render={<Link href="/pair" target="_blank" />}>
               Open /pair
@@ -140,11 +171,14 @@ export default function ScreensPage() {
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Location</th>
               <th className="px-4 py-3 font-medium">Status</th>
+              <th className="hidden px-4 py-3 font-medium xl:table-cell">
+                Content
+              </th>
               <th className="hidden px-4 py-3 font-medium lg:table-cell">
-                LCD type
+                Sync
               </th>
               <th className="hidden px-4 py-3 font-medium md:table-cell">
-                Last heartbeat
+                Heartbeat
               </th>
               <th className="px-4 py-3 font-medium text-right">Actions</th>
             </tr>
@@ -153,7 +187,7 @@ export default function ScreensPage() {
             {visibleScreens.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-8 text-center text-muted-foreground"
                 >
                   No screens yet. Open /pair on a display, then click Enter code.
@@ -170,6 +204,26 @@ export default function ScreensPage() {
                     {screen.pairingCode ? (
                       <div className="font-mono text-xs text-muted-foreground">
                         Code {screen.pairingCode}
+                        {screen.pairingExpiresAt ? (
+                          <span>
+                            {" "}
+                            · expires{" "}
+                            {new Date(screen.pairingExpiresAt).toLocaleTimeString()}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {screen.lastError ? (
+                      <div
+                        className="mt-1 max-w-[14rem] truncate text-xs text-destructive"
+                        title={screen.lastError}
+                      >
+                        {screen.lastError}
+                      </div>
+                    ) : null}
+                    {screen.clientAppVersion ? (
+                      <div className="text-xs text-muted-foreground">
+                        Client {screen.clientAppVersion}
                       </div>
                     ) : null}
                   </td>
@@ -178,19 +232,29 @@ export default function ScreensPage() {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={screen.status} />
+                    {screen.pendingCommand === "refresh" ? (
+                      <div className="mt-1 text-xs text-amber-600">
+                        Refresh pending
+                      </div>
+                    ) : null}
                   </td>
-                  <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-                    <div>
-                      {lcdPresetLabel(screen.resolution, screen.orientation)}
+                  <td className="hidden px-4 py-3 text-muted-foreground xl:table-cell">
+                    <div className="max-w-[12rem] truncate">
+                      {screen.currentContentSummary ??
+                        lcdPresetLabel(screen.resolution, screen.orientation)}
                     </div>
                     <div className="text-xs">
                       {screen.resolution} · {screen.orientation}
+                      {screen.contentVersion != null
+                        ? ` · v${screen.contentVersion}`
+                        : ""}
                     </div>
                   </td>
+                  <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
+                    {formatRelative(screen.lastSyncAt)}
+                  </td>
                   <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                    {screen.lastHeartbeat
-                      ? new Date(screen.lastHeartbeat).toLocaleString()
-                      : "—"}
+                    {formatRelative(screen.lastHeartbeat)}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-2">
@@ -206,6 +270,19 @@ export default function ScreensPage() {
                           }
                         >
                           Open
+                        </Button>
+                      ) : null}
+                      {screen.locationId && screen.status !== "pairing" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            refreshingId === screen.id ||
+                            !canAccessLocation(session.user, screen.locationId)
+                          }
+                          onClick={() => void handleRefresh(screen)}
+                        >
+                          {refreshingId === screen.id ? "…" : "Refresh"}
                         </Button>
                       ) : null}
                       <Button

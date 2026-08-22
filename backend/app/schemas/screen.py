@@ -21,6 +21,17 @@ class ScreenOut(CamelModel):
     active_menu_id: str | None
     active_template_id: str | None
     active_playlist_id: str | None = None
+    last_sync_at: datetime | None = None
+    last_error: str | None = None
+    last_error_at: datetime | None = None
+    content_version: int | None = None
+    content_updated_at: datetime | None = None
+    current_content_summary: str | None = None
+    client_app_version: str | None = None
+    pending_command: str | None = None
+    pending_command_id: str | None = None
+    pending_command_at: datetime | None = None
+    pairing_expires_at: datetime | None = None
     created_at: datetime
 
 
@@ -33,3 +44,23 @@ class ScreenUpdate(CamelModel):
 
 class ScreenHeartbeatIn(CamelModel):
     device_token: str
+    last_sync_at: datetime | None = None
+    last_sync_error: str | None = None
+    content_version: int | None = None
+    content_updated_at: datetime | None = None
+    current_content_summary: str | None = None
+    client_app_version: str | None = None
+    acked_command_id: str | None = None
+
+
+class ScreenHeartbeatOut(ScreenOut):
+    """Heartbeat response includes any pending remote command."""
+
+    pass
+
+
+class ScreenCommandOut(CamelModel):
+    screen_id: str
+    command: str
+    command_id: str
+    created_at: datetime

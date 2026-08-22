@@ -4,14 +4,35 @@ import type { DisplayPayload } from "@/lib/display/types";
 export type RealtimeEnvelope = {
   type: string;
   screenId: string;
-  payload?: DisplayPayload;
+  payload?: DisplayPayload | {
+    command?: string;
+    commandId?: string;
+    groupId?: string;
+    syncEpochMs?: number;
+    contentMode?: string;
+  };
   ts?: string;
 };
 
 type Handlers = {
   onPayload: (payload: DisplayPayload) => void;
+  onRefreshCommand?: (commandId: string) => void;
+  onWallSync?: (sync: {
+    groupId: string;
+    syncEpochMs: number;
+    contentMode?: string;
+  }) => void;
   onStatus?: (status: "connecting" | "open" | "closed") => void;
 };
+
+function isDisplayPayload(value: unknown): value is DisplayPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "screenId" in value &&
+    typeof (value as DisplayPayload).screenId === "string"
+  );
+}
 
 /**
  * Screen-scoped WebSocket with exponential backoff reconnect.
@@ -68,8 +89,40 @@ export function connectScreenRealtime(
       try {
         const data = JSON.parse(String(ev.data)) as RealtimeEnvelope;
         if (data.type === "ping") return;
-        if (data.type === "menu.published" && data.payload?.screenId) {
+        if (
+          (data.type === "menu.published" ||
+            data.type === "playlist.published" ||
+            data.type === "wall.published") &&
+          isDisplayPayload(data.payload)
+        ) {
           handlers.onPayload(data.payload);
+          return;
+        }
+        if (data.type === "wall.sync" && data.payload && typeof data.payload === "object") {
+          const p = data.payload as {
+            groupId?: string;
+            syncEpochMs?: number;
+            contentMode?: string;
+          };
+          if (p.groupId && typeof p.syncEpochMs === "number") {
+            handlers.onWallSync?.({
+              groupId: p.groupId,
+              syncEpochMs: p.syncEpochMs,
+              contentMode: p.contentMode,
+            });
+          }
+          return;
+        }
+        if (data.type === "device.refresh") {
+          const commandId =
+            data.payload &&
+            typeof data.payload === "object" &&
+            "commandId" in data.payload
+              ? String(
+                  (data.payload as { commandId?: string }).commandId ?? "",
+                )
+              : "";
+          if (commandId) handlers.onRefreshCommand?.(commandId);
         }
       } catch {
         /* ignore malformed frames */

@@ -9,6 +9,7 @@ import {
   Images,
   LayoutTemplate,
   ListVideo,
+  LayoutGrid,
   CalendarClock,
   Users,
   Settings,
@@ -53,6 +54,12 @@ export const DASHBOARD_NAV: NavItem[] = [
     label: "Screens",
     href: "/dashboard/screens",
     icon: Monitor,
+    roles: ["super_admin", "admin", "location_manager", "viewer"],
+  },
+  {
+    label: "Video walls",
+    href: "/dashboard/screen-groups",
+    icon: LayoutGrid,
     roles: ["super_admin", "admin", "location_manager", "viewer"],
   },
   {

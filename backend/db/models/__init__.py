@@ -8,6 +8,7 @@ from db.models.organization import Organization
 from db.models.playlist import Playlist, PlaylistItem
 from db.models.pos import PosIntegration, PosSyncEvent
 from db.models.screen import Screen
+from db.models.screen_group import ScreenGroup, ScreenGroupMember
 from db.models.subscription import Subscription
 from db.models.template import Template
 from db.models.theme import Theme
@@ -17,6 +18,8 @@ __all__ = [
     "Organization",
     "Location",
     "Screen",
+    "ScreenGroup",
+    "ScreenGroupMember",
     "Menu",
     "MenuItem",
     "Template",

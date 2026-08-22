@@ -51,6 +51,20 @@ export interface DisplayPayload {
   items: MenuItem[];
   updatedAt: string;
   playlist?: PlaylistPlayback | null;
+  wall?: WallInfo | null;
+}
+
+export interface WallInfo {
+  groupId: string;
+  groupName: string;
+  layout: string;
+  rows: number;
+  cols: number;
+  row: number;
+  col: number;
+  contentMode: "shared" | "tiled" | string;
+  syncEpochMs: number | null;
+  bezelCompensationPct?: number;
 }
 
 export type DisplaySource = "live" | "cache" | "none";
