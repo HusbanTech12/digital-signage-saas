@@ -41,11 +41,14 @@ export function CanvasBoard({
   className,
   animations: animationsIn,
   contentKey,
+  fillViewport = false,
 }: {
   canvasJson: DesignerCanvasJson;
   className?: string;
   animations?: Partial<DisplayAnimationConfig> | null;
   contentKey?: string;
+  /** Stretch to parent (video-wall tile). Default keeps design aspect ratio. */
+  fillViewport?: boolean;
 }) {
   const animations = mergeAnimations(
     animationsIn ?? DEFAULT_DISPLAY_ANIMATIONS,
@@ -68,7 +71,9 @@ export function CanvasBoard({
       style={{
         position: "relative",
         width: "100%",
-        aspectRatio: `${width} / ${height}`,
+        height: fillViewport ? "100%" : undefined,
+        minHeight: fillViewport ? "100%" : undefined,
+        aspectRatio: fillViewport ? undefined : `${width} / ${height}`,
         background,
         overflow: "hidden",
       }}

@@ -41,6 +41,16 @@ class MediaAssetOut(CamelModel):
     width: int | None = None
     height: int | None = None
     duration_seconds: float | None = None
+    thumbnail_url: str | None = None
+    poster_url: str | None = None
+    trim_start_seconds: float | None = None
+    trim_end_seconds: float | None = None
+    crop_x: float | None = None
+    crop_y: float | None = None
+    crop_w: float | None = None
+    crop_h: float | None = None
+    muted: bool = True
+    loop: bool = False
     tags: list[str]
     usage_count: int
     uploaded_by_user_id: str | None
@@ -56,6 +66,25 @@ class MediaAssetUpdate(CamelModel):
     tags: list[str] | None = None
     notes: str | None = None
     clear_folder: bool = False
+    width: int | None = None
+    height: int | None = None
+    duration_seconds: float | None = None
+    trim_start_seconds: float | None = None
+    trim_end_seconds: float | None = None
+    clear_trim: bool = False
+    crop_x: float | None = None
+    crop_y: float | None = None
+    crop_w: float | None = None
+    crop_h: float | None = None
+    clear_crop: bool = False
+    muted: bool | None = None
+    loop: bool | None = None
+
+
+class MediaProbeIn(CamelModel):
+    width: int | None = None
+    height: int | None = None
+    duration_seconds: float | None = None
 
 
 class MediaListOut(CamelModel):

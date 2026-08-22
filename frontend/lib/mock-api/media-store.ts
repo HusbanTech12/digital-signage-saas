@@ -35,6 +35,16 @@ let assets: MediaAsset[] = [
     width: 640,
     height: 360,
     durationSeconds: null,
+    thumbnailUrl: null,
+    posterUrl: null,
+    trimStartSeconds: null,
+    trimEndSeconds: null,
+    cropX: null,
+    cropY: null,
+    cropW: null,
+    cropH: null,
+    muted: true,
+    loop: false,
     tags: ["demo", "promo"],
     usageCount: 0,
     uploadedByUserId: "user_super",
@@ -128,6 +138,16 @@ export async function uploadMediaMock(
     width: null,
     height: null,
     durationSeconds: null,
+    thumbnailUrl: null,
+    posterUrl: null,
+    trimStartSeconds: null,
+    trimEndSeconds: null,
+    cropX: null,
+    cropY: null,
+    cropW: null,
+    cropH: null,
+    muted: true,
+    loop: false,
     tags: meta.tags ?? [],
     usageCount: 0,
     uploadedByUserId: meta.uploadedByUserId,
@@ -149,6 +169,19 @@ export function updateMediaMock(
     clearFolder?: boolean;
     tags?: string[];
     notes?: string | null;
+    width?: number | null;
+    height?: number | null;
+    durationSeconds?: number | null;
+    trimStartSeconds?: number | null;
+    trimEndSeconds?: number | null;
+    clearTrim?: boolean;
+    cropX?: number | null;
+    cropY?: number | null;
+    cropW?: number | null;
+    cropH?: number | null;
+    clearCrop?: boolean;
+    muted?: boolean;
+    loop?: boolean;
   },
 ) {
   const asset = assets.find((a) => a.id === assetId);
@@ -159,6 +192,35 @@ export function updateMediaMock(
   else if (body.folderId !== undefined) asset.folderId = body.folderId;
   if (body.tags !== undefined) asset.tags = [...body.tags];
   if (body.notes !== undefined) asset.notes = body.notes;
+  if (body.width !== undefined) asset.width = body.width;
+  if (body.height !== undefined) asset.height = body.height;
+  if (body.durationSeconds !== undefined) {
+    asset.durationSeconds = body.durationSeconds;
+  }
+  if (body.clearTrim) {
+    asset.trimStartSeconds = null;
+    asset.trimEndSeconds = null;
+  } else {
+    if (body.trimStartSeconds !== undefined) {
+      asset.trimStartSeconds = body.trimStartSeconds;
+    }
+    if (body.trimEndSeconds !== undefined) {
+      asset.trimEndSeconds = body.trimEndSeconds;
+    }
+  }
+  if (body.clearCrop) {
+    asset.cropX = null;
+    asset.cropY = null;
+    asset.cropW = null;
+    asset.cropH = null;
+  } else {
+    if (body.cropX !== undefined) asset.cropX = body.cropX;
+    if (body.cropY !== undefined) asset.cropY = body.cropY;
+    if (body.cropW !== undefined) asset.cropW = body.cropW;
+    if (body.cropH !== undefined) asset.cropH = body.cropH;
+  }
+  if (body.muted !== undefined) asset.muted = body.muted;
+  if (body.loop !== undefined) asset.loop = body.loop;
   asset.updatedAt = nowIso();
   emit();
   return { ...asset, tags: [...asset.tags] };

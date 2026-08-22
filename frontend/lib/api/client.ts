@@ -66,12 +66,21 @@ export async function apiFetch<T>(
     headers.Authorization = `Bearer ${options.token}`;
   }
 
-  const res = await fetch(url.toString(), {
-    method: options.method ?? (options.body !== undefined ? "POST" : "GET"),
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      method: options.method ?? (options.body !== undefined ? "POST" : "GET"),
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      cache: "no-store",
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Network error";
+    throw new ApiError(
+      0,
+      `Cannot reach API at ${base} (${reason}). Check NEXT_PUBLIC_API_URL and that the backend is running.`,
+    );
+  }
 
   if (res.status === 204) {
     return undefined as T;

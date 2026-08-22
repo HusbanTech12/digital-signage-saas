@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Folder, ImageIcon, Music, Upload, Video } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -165,7 +166,7 @@ export default function MediaLibraryPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         title="Media Library"
-        description="Upload and organize images, videos, audio, logos, and promo assets for menus and templates."
+          description="Upload and organize images, videos, audio, logos, and promo assets. Open Edit video for trim, poster, mute, and crop."
         actions={
           <div className="flex flex-wrap gap-2">
             {canUploadMedia(role) ? (
@@ -266,24 +267,27 @@ export default function MediaLibraryPage() {
           {folders.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {folders.map((folder) => (
-                <button
+                <div
                   key={folder.id}
-                  type="button"
-                  className="flex items-center gap-3 rounded-xl border border-border p-4 text-left hover:bg-muted/40"
-                  onClick={() => setFolderId(folder.id)}
+                  className="flex items-center gap-3 rounded-xl border border-border p-4"
                 >
-                  <Folder className="size-5 text-amber-600" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{folder.name}</p>
-                    <p className="text-xs text-muted-foreground">Folder</p>
-                  </div>
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left hover:opacity-80"
+                    onClick={() => setFolderId(folder.id)}
+                  >
+                    <Folder className="size-5 shrink-0 text-amber-600" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{folder.name}</p>
+                      <p className="text-xs text-muted-foreground">Folder</p>
+                    </div>
+                  </button>
                   {hasPermission(role, PERMISSIONS.MEDIA_DELETE) ? (
                     <Button
                       size="sm"
                       variant="ghost"
                       disabled={busy}
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      onClick={() => {
                         if (!confirm(`Delete folder “${folder.name}”?`)) return;
                         void run(async () => {
                           const token = await getApiToken();
@@ -294,7 +298,7 @@ export default function MediaLibraryPage() {
                       Delete
                     </Button>
                   ) : null}
-                </button>
+                </div>
               ))}
             </div>
           ) : null}
@@ -314,19 +318,29 @@ export default function MediaLibraryPage() {
                   className="overflow-hidden rounded-xl border border-border"
                 >
                   <div className="relative aspect-video bg-muted/50">
-                    {asset.mimeType.startsWith("image/") ? (
+                    {asset.kind === "video" || asset.mimeType.startsWith("video/") ? (
+                      asset.posterUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={resolveMediaUrl(asset.posterUrl)}
+                          alt={asset.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <video
+                          src={resolveMediaUrl(asset.url)}
+                          className="h-full w-full object-cover"
+                          muted
+                          playsInline
+                          preload="metadata"
+                        />
+                      )
+                    ) : asset.mimeType.startsWith("image/") ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={resolveMediaUrl(asset.url)}
                         alt={asset.name}
                         className="h-full w-full object-cover"
-                      />
-                    ) : asset.mimeType.startsWith("video/") ? (
-                      <video
-                        src={resolveMediaUrl(asset.url)}
-                        className="h-full w-full object-cover"
-                        muted
-                        playsInline
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -340,6 +354,9 @@ export default function MediaLibraryPage() {
                         <p className="truncate font-medium">{asset.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {asset.kind} · {formatBytes(asset.sizeBytes)}
+                          {asset.durationSeconds
+                            ? ` · ${Math.round(asset.durationSeconds)}s`
+                            : ""}
                           {asset.usageCount > 0
                             ? ` · used ${asset.usageCount}×`
                             : ""}
@@ -355,6 +372,19 @@ export default function MediaLibraryPage() {
                       </p>
                     ) : null}
                     <div className="flex flex-wrap gap-1">
+                      {(asset.kind === "video" ||
+                        asset.mimeType.startsWith("video/")) &&
+                      hasPermission(role, PERMISSIONS.MEDIA_UPDATE) ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          render={
+                            <Link href={`/dashboard/media/${asset.id}`} />
+                          }
+                        >
+                          Edit video
+                        </Button>
+                      ) : null}
                       {hasPermission(role, PERMISSIONS.MEDIA_UPDATE) ? (
                         <Button
                           size="sm"

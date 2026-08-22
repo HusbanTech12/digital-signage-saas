@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -75,6 +76,16 @@ class MediaAsset(Base):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    thumbnail_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    poster_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    trim_start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trim_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    crop_x: Mapped[float | None] = mapped_column(Float, nullable=True)
+    crop_y: Mapped[float | None] = mapped_column(Float, nullable=True)
+    crop_w: Mapped[float | None] = mapped_column(Float, nullable=True)
+    crop_h: Mapped[float | None] = mapped_column(Float, nullable=True)
+    muted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    loop: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     tags: Mapped[list[str]] = mapped_column(
         ARRAY(String(64)), nullable=False, default=list
     )

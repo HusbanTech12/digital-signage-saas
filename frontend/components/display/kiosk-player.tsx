@@ -306,11 +306,15 @@ export function KioskPlayer({
       : null;
 
   const wall = payload.wall ?? null;
-  const tiled =
-    wall &&
-    wall.contentMode === "tiled" &&
-    wall.rows > 0 &&
-    wall.cols > 0;
+  // Tiled crop only makes sense for spanning canvas layouts.
+  // Premium / fallback menu boards always fill the physical screen.
+  const tiledCanvas =
+    Boolean(wall) &&
+    wall!.contentMode === "tiled" &&
+    wall!.rows > 0 &&
+    wall!.cols > 0 &&
+    Boolean(showCanvas) &&
+    !playlist;
 
   const board = playlist ? (
     <PlaylistPlayer
@@ -319,10 +323,19 @@ export function KioskPlayer({
       wall={wall}
     />
   ) : showCanvas && payload.canvasJson ? (
-    <div className="flex min-h-screen items-center justify-center p-0">
+    <div
+      className={
+        tiledCanvas
+          ? "h-full w-full"
+          : "flex h-dvh w-screen items-center justify-center overflow-hidden p-0"
+      }
+    >
       <CanvasBoard
         canvasJson={payload.canvasJson}
-        className="h-auto w-full max-w-[100vw]"
+        className={
+          tiledCanvas ? "h-full w-full max-w-none" : "h-auto w-full max-w-[100vw]"
+        }
+        fillViewport={tiledCanvas}
         animations={animations}
         contentKey={contentKey}
       />
@@ -345,7 +358,7 @@ export function KioskPlayer({
 
   return (
     <div
-      className={`relative min-h-screen overflow-hidden bg-zinc-950 text-zinc-50 ${
+      className={`relative h-dvh w-screen overflow-hidden bg-zinc-950 text-zinc-50 ${
         payload.orientation === "portrait" ? "portrait" : ""
       }`}
     >
@@ -357,19 +370,19 @@ export function KioskPlayer({
         </div>
       )}
 
-      {tiled ? (
-        <div className="relative h-screen w-screen overflow-hidden">
+      {tiledCanvas && wall ? (
+        <div className="relative h-dvh w-screen overflow-hidden">
           <div
+            className="absolute top-0 left-0"
             style={{
-              width: `${wall.cols * 100}%`,
-              height: `${wall.rows * 100}%`,
-              marginLeft: `-${wall.col * 100}%`,
-              marginTop: `-${wall.row * 100}%`,
-              transform:
+              width: `${wall.cols * 100}vw`,
+              height: `${wall.rows * 100}vh`,
+              transform: `translate(-${wall.col * 100}vw, -${wall.row * 100}vh)${
                 wall.bezelCompensationPct && wall.bezelCompensationPct > 0
-                  ? `scale(${1 + wall.bezelCompensationPct / 100})`
-                  : undefined,
-              transformOrigin: "center center",
+                  ? ` scale(${1 + wall.bezelCompensationPct / 100})`
+                  : ""
+              }`,
+              transformOrigin: "top left",
             }}
           >
             {board}
@@ -379,7 +392,14 @@ export function KioskPlayer({
           </div>
         </div>
       ) : (
-        board
+        <>
+          {board}
+          {wall ? (
+            <div className="pointer-events-none absolute top-3 left-3 z-20 font-mono text-[10px] tracking-wide text-zinc-500 uppercase">
+              Wall {wall.groupName} · shared · {wall.row + 1},{wall.col + 1}
+            </div>
+          ) : null}
+        </>
       )}
 
       {!playlist && showCanvas && payload.items.length > 0 ? (

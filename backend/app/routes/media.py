@@ -22,10 +22,11 @@ from app.schemas.media import (
     MediaFolderOut,
     MediaFolderUpdate,
     MediaListOut,
+    MediaProbeIn,
 )
 from app.services import media as media_service
 from app.services.storage import get_media_storage
-from db.models import User
+from db.models import MediaAsset, User
 from db.session import get_db
 
 router = APIRouter(prefix="/api/v1/media", tags=["media"])
@@ -84,6 +85,9 @@ async def upload_media(
     folder_id: str | None = Form(default=None),
     tags: str | None = Form(default=None),
     notes: str | None = Form(default=None),
+    width: int | None = Form(default=None),
+    height: int | None = Form(default=None),
+    duration_seconds: float | None = Form(default=None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MediaAssetOut:
@@ -99,6 +103,9 @@ async def upload_media(
         folder_id=folder_id or None,
         tags=_parse_tags(tags),
         notes=notes,
+        width=width,
+        height=height,
+        duration_seconds=duration_seconds,
     )
     return MediaAssetOut.model_validate(asset)
 
@@ -120,6 +127,55 @@ async def update_asset(
         clear_folder=body.clear_folder,
         tags=body.tags,
         notes=body.notes,
+        width=body.width,
+        height=body.height,
+        duration_seconds=body.duration_seconds,
+        trim_start_seconds=body.trim_start_seconds,
+        trim_end_seconds=body.trim_end_seconds,
+        clear_trim=body.clear_trim,
+        crop_x=body.crop_x,
+        crop_y=body.crop_y,
+        crop_w=body.crop_w,
+        crop_h=body.crop_h,
+        clear_crop=body.clear_crop,
+        muted=body.muted,
+        loop=body.loop,
+    )
+    return MediaAssetOut.model_validate(asset)
+
+
+@router.post("/assets/{asset_id}/probe", response_model=MediaAssetOut)
+async def probe_asset(
+    asset_id: str,
+    body: MediaProbeIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MediaAssetOut:
+    asset = await media_service.probe_asset(
+        db,
+        user=user,
+        asset_id=asset_id,
+        width=body.width,
+        height=body.height,
+        duration_seconds=body.duration_seconds,
+    )
+    return MediaAssetOut.model_validate(asset)
+
+
+@router.post("/assets/{asset_id}/poster", response_model=MediaAssetOut)
+async def set_poster(
+    asset_id: str,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MediaAssetOut:
+    data = await file.read()
+    asset = await media_service.set_asset_poster(
+        db,
+        user=user,
+        asset_id=asset_id,
+        data=data,
+        content_type=file.content_type,
     )
     return MediaAssetOut.model_validate(asset)
 
@@ -174,26 +230,36 @@ async def serve_local_content(
     org_id: str,
     asset_id: str,
     filename: str,
-    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Serve locally stored media (dev / non-S3). Auth required."""
-    require_permission(user, MEDIA_READ)
-    if org_id != user.organization_id:
-        raise HTTPException(status_code=403, detail="Organization mismatch")
-    asset = await media_service.get_org_asset_or_404(db, user, asset_id)
-    expected = f"{org_id}/{asset_id}/{filename}"
-    if asset.storage_key != expected:
+    """Serve locally stored media for <img>/<video> tags.
+
+    No Bearer header — browsers cannot attach Authorization on media elements.
+    Access is gated by unguessable asset IDs + path under the asset folder.
+    """
+    asset = await db.get(MediaAsset, asset_id)
+    if asset is None or asset.organization_id != org_id:
         raise HTTPException(status_code=404, detail="File not found")
-    data = get_media_storage().read_bytes(asset.storage_key)
+    key = f"{org_id}/{asset_id}/{filename}"
+    is_main = asset.storage_key == key
+    is_poster = filename.lower() in {"poster.jpg", "poster.jpeg", "poster.png"} and (
+        asset.poster_url is not None or asset.thumbnail_url is not None
+    )
+    if not is_main and not is_poster:
+        raise HTTPException(status_code=404, detail="File not found")
+    data = get_media_storage().read_bytes(key)
     if data is None:
         raise HTTPException(status_code=404, detail="File missing on disk")
+    media_type = asset.mime_type if is_main else "image/jpeg"
+    if filename.lower().endswith(".png"):
+        media_type = "image/png"
     return StreamingResponse(
         iter([data]),
-        media_type=asset.mime_type,
+        media_type=media_type,
         headers={
-            "Content-Disposition": f'inline; filename="{asset.original_filename}"',
+            "Content-Disposition": f'inline; filename="{filename}"',
             "Cache-Control": "private, max-age=3600",
+            "Access-Control-Allow-Origin": "*",
         },
     )
 

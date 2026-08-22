@@ -102,6 +102,16 @@ def _playlist_from_snapshot(snap: dict[str, Any]) -> PlaylistPlaybackOut | None:
                 media_mime_type=s.get("mediaMimeType") or s.get("media_mime_type"),
                 media_kind=s.get("mediaKind") or s.get("media_kind"),
                 media_name=s.get("mediaName") or s.get("media_name"),
+                poster_url=s.get("posterUrl") or s.get("poster_url"),
+                muted=s.get("muted"),
+                loop=s.get("loop"),
+                trim_start_seconds=s.get("trimStartSeconds")
+                or s.get("trim_start_seconds"),
+                trim_end_seconds=s.get("trimEndSeconds") or s.get("trim_end_seconds"),
+                crop_x=s.get("cropX") if "cropX" in s else s.get("crop_x"),
+                crop_y=s.get("cropY") if "cropY" in s else s.get("crop_y"),
+                crop_w=s.get("cropW") if "cropW" in s else s.get("crop_w"),
+                crop_h=s.get("cropH") if "cropH" in s else s.get("crop_h"),
             )
         )
     return PlaylistPlaybackOut(
@@ -200,12 +210,25 @@ async def _resolve_playlist_playback(
             slide.media_mime_type = asset.mime_type
             slide.media_kind = asset.kind
             slide.media_name = asset.name
-            if (
-                row.content_type == "video"
-                and asset.duration_seconds
-                and row.duration_seconds <= 10
-            ):
-                slide.duration_seconds = max(1, int(asset.duration_seconds))
+            slide.poster_url = asset.poster_url or asset.thumbnail_url
+            slide.muted = bool(asset.muted) if asset.muted is not None else True
+            slide.loop = bool(asset.loop)
+            slide.trim_start_seconds = asset.trim_start_seconds
+            slide.trim_end_seconds = asset.trim_end_seconds
+            slide.crop_x = asset.crop_x
+            slide.crop_y = asset.crop_y
+            slide.crop_w = asset.crop_w
+            slide.crop_h = asset.crop_h
+            if row.content_type == "video":
+                playable = asset.duration_seconds
+                if (
+                    asset.trim_start_seconds is not None
+                    and asset.trim_end_seconds is not None
+                    and asset.trim_end_seconds > asset.trim_start_seconds
+                ):
+                    playable = asset.trim_end_seconds - asset.trim_start_seconds
+                if playable and row.duration_seconds <= 10:
+                    slide.duration_seconds = max(1, int(playable))
         else:
             continue
         slides.append(slide)

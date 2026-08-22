@@ -57,6 +57,9 @@ export async function uploadMediaApi(
     folderId?: string | null;
     tags?: string[];
     notes?: string;
+    width?: number;
+    height?: number;
+    durationSeconds?: number;
   },
 ) {
   const base = getApiBaseUrl();
@@ -68,12 +71,25 @@ export async function uploadMediaApi(
   if (meta?.folderId) form.append("folder_id", meta.folderId);
   if (meta?.tags?.length) form.append("tags", meta.tags.join(","));
   if (meta?.notes) form.append("notes", meta.notes);
+  if (meta?.width) form.append("width", String(meta.width));
+  if (meta?.height) form.append("height", String(meta.height));
+  if (meta?.durationSeconds != null) {
+    form.append("duration_seconds", String(meta.durationSeconds));
+  }
 
-  const res = await fetch(`${base}/api/v1/media/upload`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    body: form,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${base}/api/v1/media/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      body: form,
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "Network error";
+    throw new Error(
+      `Cannot reach API at ${base} (${reason}). Check NEXT_PUBLIC_API_URL and that the backend is running.`,
+    );
+  }
   if (!res.ok) {
     let message = res.statusText;
     try {
@@ -97,6 +113,19 @@ export function updateMediaApi(
     clearFolder?: boolean;
     tags?: string[];
     notes?: string | null;
+    width?: number | null;
+    height?: number | null;
+    durationSeconds?: number | null;
+    trimStartSeconds?: number | null;
+    trimEndSeconds?: number | null;
+    clearTrim?: boolean;
+    cropX?: number | null;
+    cropY?: number | null;
+    cropW?: number | null;
+    cropH?: number | null;
+    clearCrop?: boolean;
+    muted?: boolean;
+    loop?: boolean;
   },
 ) {
   return apiFetch<MediaAsset>(`/api/v1/media/assets/${assetId}`, {
@@ -104,6 +133,43 @@ export function updateMediaApi(
     token,
     body,
   });
+}
+
+export function probeMediaApi(
+  token: Token,
+  assetId: string,
+  body: {
+    width?: number;
+    height?: number;
+    durationSeconds?: number;
+  },
+) {
+  return apiFetch<MediaAsset>(`/api/v1/media/assets/${assetId}/probe`, {
+    method: "POST",
+    token,
+    body,
+  });
+}
+
+export async function setMediaPosterApi(
+  token: Token,
+  assetId: string,
+  file: Blob,
+  filename = "poster.jpg",
+) {
+  const base = getApiBaseUrl();
+  if (!base) throw new Error("NEXT_PUBLIC_API_URL is not configured");
+  const form = new FormData();
+  form.append("file", file, filename);
+  const res = await fetch(`${base}/api/v1/media/assets/${assetId}/poster`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    body: form,
+  });
+  if (!res.ok) {
+    throw new Error(`Poster upload failed (${res.status})`);
+  }
+  return (await res.json()) as MediaAsset;
 }
 
 export async function replaceMediaApi(token: Token, assetId: string, file: File) {

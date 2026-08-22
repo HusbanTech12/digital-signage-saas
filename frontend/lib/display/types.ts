@@ -23,6 +23,15 @@ export interface PlaylistSlide {
   mediaMimeType: string | null;
   mediaKind: string | null;
   mediaName: string | null;
+  posterUrl?: string | null;
+  muted?: boolean | null;
+  loop?: boolean | null;
+  trimStartSeconds?: number | null;
+  trimEndSeconds?: number | null;
+  cropX?: number | null;
+  cropY?: number | null;
+  cropW?: number | null;
+  cropH?: number | null;
 }
 
 export interface PlaylistPlayback {

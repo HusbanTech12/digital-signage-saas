@@ -244,6 +244,9 @@ async def upload_asset(
     folder_id: str | None,
     tags: list[str] | None,
     notes: str | None,
+    width: int | None = None,
+    height: int | None = None,
+    duration_seconds: float | None = None,
 ) -> MediaAsset:
     require_permission(user, MEDIA_UPLOAD)
     if not data:
@@ -266,11 +269,6 @@ async def upload_asset(
         storage_key=storage_key, data=data, content_type=mime
     )
 
-    # Local mode URLs are relative content routes — absolute for clients later.
-    if url.startswith("/api/"):
-        # Keep relative; frontend can prefix API base.
-        pass
-
     now = _utcnow()
     display_name = (name or Path_stem(safe_name)).strip() or safe_name
     asset = MediaAsset(
@@ -284,6 +282,15 @@ async def upload_asset(
         size_bytes=len(data),
         storage_key=storage_key,
         url=url,
+        width=width if width and width > 0 else None,
+        height=height if height and height > 0 else None,
+        duration_seconds=(
+            float(duration_seconds)
+            if duration_seconds is not None and duration_seconds > 0
+            else None
+        ),
+        muted=True,
+        loop=False,
         tags=_normalize_tags(tags),
         usage_count=0,
         uploaded_by_user_id=user.id,
@@ -326,6 +333,26 @@ def _normalize_tags(tags: list[str] | None) -> list[str]:
     return cleaned[:30]
 
 
+def _clamp01(value: float | None) -> float | None:
+    if value is None:
+        return None
+    return max(0.0, min(1.0, float(value)))
+
+
+def _validate_trim(
+    start: float | None, end: float | None, duration: float | None
+) -> tuple[float | None, float | None]:
+    if start is not None and start < 0:
+        raise HTTPException(400, detail="trimStartSeconds must be >= 0")
+    if end is not None and end <= 0:
+        raise HTTPException(400, detail="trimEndSeconds must be > 0")
+    if start is not None and end is not None and end <= start:
+        raise HTTPException(400, detail="trimEndSeconds must be greater than trimStart")
+    if duration is not None and end is not None and end > duration + 0.5:
+        end = float(duration)
+    return start, end
+
+
 async def update_asset(
     db: AsyncSession,
     *,
@@ -337,6 +364,19 @@ async def update_asset(
     clear_folder: bool,
     tags: list[str] | None,
     notes: str | None,
+    width: int | None = None,
+    height: int | None = None,
+    duration_seconds: float | None = None,
+    trim_start_seconds: float | None = None,
+    trim_end_seconds: float | None = None,
+    clear_trim: bool = False,
+    crop_x: float | None = None,
+    crop_y: float | None = None,
+    crop_w: float | None = None,
+    crop_h: float | None = None,
+    clear_crop: bool = False,
+    muted: bool | None = None,
+    loop: bool | None = None,
 ) -> MediaAsset:
     require_permission(user, MEDIA_UPDATE)
     asset = await get_org_asset_or_404(db, user, asset_id)
@@ -356,12 +396,111 @@ async def update_asset(
         asset.tags = _normalize_tags(tags)
     if notes is not None:
         asset.notes = notes.strip() or None
+    if width is not None and width > 0:
+        asset.width = width
+    if height is not None and height > 0:
+        asset.height = height
+    if duration_seconds is not None and duration_seconds > 0:
+        asset.duration_seconds = float(duration_seconds)
+    if clear_trim:
+        asset.trim_start_seconds = None
+        asset.trim_end_seconds = None
+    elif trim_start_seconds is not None or trim_end_seconds is not None:
+        start = (
+            trim_start_seconds
+            if trim_start_seconds is not None
+            else asset.trim_start_seconds
+        )
+        end = (
+            trim_end_seconds if trim_end_seconds is not None else asset.trim_end_seconds
+        )
+        start, end = _validate_trim(start, end, asset.duration_seconds)
+        if trim_start_seconds is not None:
+            asset.trim_start_seconds = start
+        if trim_end_seconds is not None:
+            asset.trim_end_seconds = end
+    if clear_crop:
+        asset.crop_x = asset.crop_y = asset.crop_w = asset.crop_h = None
+    elif any(v is not None for v in (crop_x, crop_y, crop_w, crop_h)):
+        asset.crop_x = _clamp01(crop_x if crop_x is not None else asset.crop_x or 0)
+        asset.crop_y = _clamp01(crop_y if crop_y is not None else asset.crop_y or 0)
+        asset.crop_w = _clamp01(crop_w if crop_w is not None else asset.crop_w or 1)
+        asset.crop_h = _clamp01(crop_h if crop_h is not None else asset.crop_h or 1)
+        if (asset.crop_w or 0) <= 0.01 or (asset.crop_h or 0) <= 0.01:
+            raise HTTPException(400, detail="Crop region is too small")
+    if muted is not None:
+        asset.muted = muted
+    if loop is not None:
+        asset.loop = loop
     asset.updated_at = _utcnow()
     await record_audit(
         db,
         organization_id=user.organization_id,
         actor=user,
         action="media.updated",
+        metadata={"mediaId": asset.id},
+    )
+    await db.commit()
+    await db.refresh(asset)
+    return asset
+
+
+async def probe_asset(
+    db: AsyncSession,
+    *,
+    user: User,
+    asset_id: str,
+    width: int | None,
+    height: int | None,
+    duration_seconds: float | None,
+) -> MediaAsset:
+    """Store client-probed width/height/duration (no ffmpeg required)."""
+    require_permission(user, MEDIA_UPDATE)
+    asset = await get_org_asset_or_404(db, user, asset_id)
+    if width is not None and width > 0:
+        asset.width = width
+    if height is not None and height > 0:
+        asset.height = height
+    if duration_seconds is not None and duration_seconds > 0:
+        asset.duration_seconds = float(duration_seconds)
+    asset.updated_at = _utcnow()
+    await db.commit()
+    await db.refresh(asset)
+    return asset
+
+
+async def set_asset_poster(
+    db: AsyncSession,
+    *,
+    user: User,
+    asset_id: str,
+    data: bytes,
+    content_type: str | None = "image/jpeg",
+) -> MediaAsset:
+    require_permission(user, MEDIA_UPDATE)
+    asset = await get_org_asset_or_404(db, user, asset_id)
+    if asset.kind != "video" and not (asset.mime_type or "").startswith("video/"):
+        raise HTTPException(400, detail="Poster frames are only for video assets")
+    if not data:
+        raise HTTPException(400, detail="Empty poster")
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(400, detail="Poster exceeds 8MB")
+
+    mime = content_type or "image/jpeg"
+    if not mime.startswith("image/"):
+        raise HTTPException(400, detail="Poster must be an image")
+
+    storage = get_media_storage()
+    poster_key = f"{user.organization_id}/{asset.id}/poster.jpg"
+    url = storage.put_bytes(storage_key=poster_key, data=data, content_type=mime)
+    asset.poster_url = url
+    asset.thumbnail_url = url
+    asset.updated_at = _utcnow()
+    await record_audit(
+        db,
+        organization_id=user.organization_id,
+        actor=user,
+        action="media.poster_set",
         metadata={"mediaId": asset.id},
     )
     await db.commit()

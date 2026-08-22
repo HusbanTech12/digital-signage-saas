@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CanvasBoard } from "@/components/display/canvas-board";
 import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
@@ -11,7 +11,92 @@ import type {
 } from "@/lib/display/types";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 import { useDisplayMediaSrc } from "@/lib/display/use-display-media-src";
+import { resolveMediaUrl } from "@/lib/api/media";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
+
+function VideoSlide({
+  slide,
+  mediaSrc,
+  onVideoEnded,
+}: {
+  slide: PlaylistSlide;
+  mediaSrc: string | null;
+  onVideoEnded?: () => void;
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const muted = slide.muted !== false;
+  const loop = Boolean(slide.loop);
+  const trimStart = slide.trimStartSeconds ?? 0;
+  const trimEnd = slide.trimEndSeconds ?? null;
+  const poster = slide.posterUrl ? resolveMediaUrl(slide.posterUrl) : undefined;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const start = Math.max(0, trimStart);
+    const onMeta = () => {
+      if (Math.abs(el.currentTime - start) > 0.25) {
+        el.currentTime = start;
+      }
+      void el.play().catch(() => undefined);
+    };
+    el.addEventListener("loadedmetadata", onMeta);
+    if (el.readyState >= 1) onMeta();
+    return () => el.removeEventListener("loadedmetadata", onMeta);
+  }, [trimStart, mediaSrc, slide.id]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || trimEnd == null) return;
+    const onTime = () => {
+      if (el.currentTime >= trimEnd) {
+        if (loop) {
+          el.currentTime = Math.max(0, trimStart);
+          void el.play().catch(() => undefined);
+        } else {
+          el.pause();
+          onVideoEnded?.();
+        }
+      }
+    };
+    el.addEventListener("timeupdate", onTime);
+    return () => el.removeEventListener("timeupdate", onTime);
+  }, [trimEnd, trimStart, loop, onVideoEnded]);
+
+  const crop =
+    slide.cropW != null &&
+    slide.cropH != null &&
+    (slide.cropW < 0.999 || slide.cropH < 0.999);
+  const cx = slide.cropX ?? 0;
+  const cy = slide.cropY ?? 0;
+  const cw = Math.max(0.05, slide.cropW ?? 1);
+  const ch = Math.max(0.05, slide.cropH ?? 1);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center overflow-hidden bg-black">
+      <video
+        ref={ref}
+        key={`${slide.id}-${mediaSrc ?? slide.mediaUrl}`}
+        src={mediaSrc ?? slide.mediaUrl!}
+        poster={poster}
+        className="max-h-screen max-w-full"
+        style={
+          crop
+            ? {
+                transform: `scale(${1 / cw}, ${1 / ch})`,
+                transformOrigin: `${(cx / Math.max(0.05, 1 - cw)) * 100}% ${(cy / Math.max(0.05, 1 - ch)) * 100}%`,
+              }
+            : undefined
+        }
+        autoPlay
+        muted={muted}
+        loop={loop && trimEnd == null}
+        playsInline
+        onEnded={trimEnd != null ? undefined : onVideoEnded}
+      />
+    </div>
+  );
+}
 
 function SlideView({
   slide,
@@ -41,17 +126,11 @@ function SlideView({
 
   if (slide.contentType === "video" && (mediaSrc || slide.mediaUrl)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <video
-          key={`${slide.id}-${mediaSrc ?? slide.mediaUrl}`}
-          src={mediaSrc ?? slide.mediaUrl!}
-          className="max-h-screen max-w-full"
-          autoPlay
-          muted
-          playsInline
-          onEnded={onVideoEnded}
-        />
-      </div>
+      <VideoSlide
+        slide={slide}
+        mediaSrc={mediaSrc}
+        onVideoEnded={onVideoEnded}
+      />
     );
   }
 
@@ -125,7 +204,16 @@ function SlideView({
 }
 
 function slideDurationMs(slide: PlaylistSlide): number {
-  const baseMs = Math.max(1, slide.durationSeconds) * 1000;
+  let seconds = slide.durationSeconds;
+  if (
+    slide.contentType === "video" &&
+    slide.trimStartSeconds != null &&
+    slide.trimEndSeconds != null &&
+    slide.trimEndSeconds > slide.trimStartSeconds
+  ) {
+    seconds = slide.trimEndSeconds - slide.trimStartSeconds;
+  }
+  const baseMs = Math.max(1, seconds) * 1000;
   return slide.contentType === "video" ? baseMs + 2000 : baseMs;
 }
 

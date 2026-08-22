@@ -113,6 +113,15 @@ class PlaylistSlideOut(CamelModel):
     media_mime_type: str | None = None
     media_kind: str | None = None
     media_name: str | None = None
+    poster_url: str | None = None
+    muted: bool | None = None
+    loop: bool | None = None
+    trim_start_seconds: float | None = None
+    trim_end_seconds: float | None = None
+    crop_x: float | None = None
+    crop_y: float | None = None
+    crop_w: float | None = None
+    crop_h: float | None = None
 
 
 class PlaylistPlaybackOut(CamelModel):

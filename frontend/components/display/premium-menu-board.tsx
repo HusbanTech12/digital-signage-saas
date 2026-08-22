@@ -89,7 +89,7 @@ export function PremiumMenuBoard({
     <AnimatedBoard
       animations={anim}
       contentKey={contentKey}
-      className="relative flex min-h-screen flex-col overflow-hidden px-10 py-8 md:px-14 md:py-10"
+      className="relative flex h-dvh min-h-dvh w-screen flex-col overflow-hidden px-10 py-8 md:px-14 md:py-10"
       style={{
         backgroundColor: config.backgroundColor,
         color: config.textColor,

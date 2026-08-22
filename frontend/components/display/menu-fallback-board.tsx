@@ -39,7 +39,7 @@ export function MenuFallbackBoard({
     <AnimatedBoard
       animations={animations}
       contentKey={contentKey}
-      className="flex h-full min-h-screen flex-col bg-zinc-950 px-8 py-10 text-zinc-50 md:px-16"
+      className="flex h-dvh min-h-dvh w-screen flex-col bg-zinc-950 px-8 py-10 text-zinc-50 md:px-16"
     >
       <header className="border-b border-zinc-800 pb-6">
         <p className="text-sm tracking-[0.25em] text-zinc-500 uppercase">
