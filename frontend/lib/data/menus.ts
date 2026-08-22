@@ -151,7 +151,12 @@ export async function deleteMenuItem(
 }
 
 export async function publishMenu(
-  input: { menuId: string; templateId: string; screenIds: string[] },
+  input: {
+    menuId: string;
+    templateId: string;
+    screenIds: string[];
+    changeSummary?: string | null;
+  },
   token?: Token | null,
 ): Promise<Menu> {
   if (useLiveApi() && token) {
@@ -167,6 +172,7 @@ export async function publishMenu(
         ...screen,
         activeMenuId: menu.id,
         activeTemplateId: input.templateId,
+        activePlaylistId: null,
       });
     }
     return menu;

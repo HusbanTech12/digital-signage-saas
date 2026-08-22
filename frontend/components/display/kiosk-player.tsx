@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CanvasBoard } from "@/components/display/canvas-board";
 import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
+import { PlaylistPlayer } from "@/components/display/playlist-player";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 import { useLiveApi } from "@/lib/api/config";
@@ -201,12 +202,21 @@ export function KioskPlayer({
   const usePremium = payload.displayConfig?.layout === "premium";
   const displayConfig = usePremium
     ? mergeDisplayConfig(payload.displayConfig)
-    : null;
+    : payload.displayConfig
+      ? mergeDisplayConfig(payload.displayConfig)
+      : null;
   const showCanvas =
     !usePremium &&
     payload.canvasJson &&
     Array.isArray(payload.canvasJson.objects) &&
     payload.canvasJson.objects.length > 0;
+
+  const contentKey = [
+    payload.menuId ?? "",
+    payload.menuVersion ?? "",
+    payload.updatedAt ?? "",
+    payload.items.map((i) => `${i.id}:${i.price}:${i.available}`).join("|"),
+  ].join("::");
 
   const statusLabel =
     source === "live"
@@ -216,6 +226,16 @@ export function KioskPlayer({
       : source === "cache"
         ? "Cached"
         : undefined;
+
+  const animations =
+    displayConfig?.animations ?? mergeDisplayConfig(null).animations;
+
+  const playlist =
+    payload.playlist &&
+    Array.isArray(payload.playlist.slides) &&
+    payload.playlist.slides.length > 0
+      ? payload.playlist
+      : null;
 
   return (
     <div
@@ -231,11 +251,15 @@ export function KioskPlayer({
         </div>
       )}
 
-      {showCanvas && payload.canvasJson ? (
+      {playlist ? (
+        <PlaylistPlayer playlist={playlist} statusLabel={statusLabel} />
+      ) : showCanvas && payload.canvasJson ? (
         <div className="flex min-h-screen items-center justify-center p-0">
           <CanvasBoard
             canvasJson={payload.canvasJson}
             className="h-auto w-full max-w-[100vw]"
+            animations={animations}
+            contentKey={contentKey}
           />
         </div>
       ) : usePremium && displayConfig ? (
@@ -243,15 +267,18 @@ export function KioskPlayer({
           items={payload.items}
           config={displayConfig}
           statusLabel={statusLabel}
+          contentKey={contentKey}
         />
       ) : (
         <MenuFallbackBoard
           title={payload.menuName ?? payload.screenName}
           items={payload.items}
+          animations={animations}
+          contentKey={contentKey}
         />
       )}
 
-      {showCanvas && payload.items.length > 0 ? (
+      {!playlist && showCanvas && payload.items.length > 0 ? (
         <div className="pointer-events-none absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent px-6 pt-16 pb-5">
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-200">
             {payload.items.slice(0, 8).map((item) => (

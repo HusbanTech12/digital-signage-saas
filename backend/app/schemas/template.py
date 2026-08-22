@@ -19,6 +19,10 @@ class TemplateOut(CamelModel):
     display_config: dict[str, Any] = Field(default_factory=dict)
     resolution: str = "1920x1080"
     orientation: ScreenOrientation = "landscape"
+    status: str = "draft"
+    version: int = 1
+    published_at: datetime | None = None
+    published_by_user_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

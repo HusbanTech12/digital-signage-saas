@@ -57,6 +57,14 @@ FUSION_PREMIUM_DISPLAY_CONFIG = {
     "categories": ["Starters", "Mains", "Sweets"],
     "showClock": True,
     "showSoldOut": True,
+    "animations": {
+        "enabled": True,
+        "boardTransition": "fade",
+        "itemAnimation": "fade-in",
+        "durationMs": 400,
+        "staggerMs": 45,
+        "animateOnUpdate": True,
+    },
 }
 
 PORTRAIT_CANVAS = {

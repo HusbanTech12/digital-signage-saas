@@ -77,6 +77,17 @@ export function canUploadMedia(role: Role) {
   return hasPermission(role, PERMISSIONS.MEDIA_UPLOAD);
 }
 
+export function canManagePlaylists(role: Role) {
+  return (
+    hasPermission(role, PERMISSIONS.PLAYLISTS_CREATE) ||
+    hasPermission(role, PERMISSIONS.PLAYLISTS_UPDATE)
+  );
+}
+
+export function canPublishPlaylists(role: Role) {
+  return hasPermission(role, PERMISSIONS.PLAYLISTS_PUBLISH);
+}
+
 /** Open / edit designer canvas (includes Location Manager for publish flow). */
 export function canEditDesigner(role: Role) {
   return canManageMenus(role);

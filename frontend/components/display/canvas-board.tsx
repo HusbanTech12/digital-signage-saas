@@ -1,6 +1,17 @@
 "use client";
 
+import type { CSSProperties } from "react";
+import { AnimatedBoard } from "@/components/display/animated-board";
+import {
+  animationStyleVars,
+  DEFAULT_DISPLAY_ANIMATIONS,
+  itemAnimationClass,
+  itemDelayMs,
+  mergeAnimations,
+  type DisplayAnimationConfig,
+} from "@/lib/display/animations";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
+import { cn } from "@/lib/utils";
 
 type CanvasObject = {
   type?: string;
@@ -28,10 +39,17 @@ type CanvasObject = {
 export function CanvasBoard({
   canvasJson,
   className,
+  animations: animationsIn,
+  contentKey,
 }: {
   canvasJson: DesignerCanvasJson;
   className?: string;
+  animations?: Partial<DisplayAnimationConfig> | null;
+  contentKey?: string;
 }) {
+  const animations = mergeAnimations(
+    animationsIn ?? DEFAULT_DISPLAY_ANIMATIONS,
+  );
   const width =
     typeof canvasJson.width === "number" ? canvasJson.width : 1280;
   const height =
@@ -43,7 +61,9 @@ export function CanvasBoard({
     : [];
 
   return (
-    <div
+    <AnimatedBoard
+      animations={animations}
+      contentKey={contentKey}
       className={className}
       style={{
         position: "relative",
@@ -59,9 +79,11 @@ export function CanvasBoard({
           obj={obj}
           canvasWidth={width}
           canvasHeight={height}
+          animations={animations}
+          index={index}
         />
       ))}
-    </div>
+    </AnimatedBoard>
   );
 }
 
@@ -69,10 +91,14 @@ function CanvasObjectView({
   obj,
   canvasWidth,
   canvasHeight,
+  animations,
+  index,
 }: {
   obj: CanvasObject;
   canvasWidth: number;
   canvasHeight: number;
+  animations: DisplayAnimationConfig;
+  index: number;
 }) {
   const type = (obj.type ?? "").toLowerCase();
   const leftPct = ((obj.left ?? 0) / canvasWidth) * 100;
@@ -81,13 +107,22 @@ function CanvasObjectView({
     (((obj.width ?? 100) * (obj.scaleX ?? 1)) / canvasWidth) * 100;
   const heightPct =
     (((obj.height ?? 40) * (obj.scaleY ?? 1)) / canvasHeight) * 100;
-  // Scale font with viewport width relative to design width
   const fontSizeVw = ((obj.fontSize ?? 18) / canvasWidth) * 100;
   const transform = obj.angle ? `rotate(${obj.angle}deg)` : undefined;
+  const delay = itemDelayMs(index, animations.staggerMs);
+  const animClass = itemAnimationClass(
+    animations.itemAnimation,
+    animations.enabled,
+  );
+  const animStyle: CSSProperties = {
+    ...animationStyleVars(animations),
+    ["--dss-item-delay" as string]: `${delay}ms`,
+  };
 
   if (type === "rect") {
     return (
       <div
+        className={cn(animClass)}
         style={{
           position: "absolute",
           left: `${leftPct}%`,
@@ -98,6 +133,7 @@ function CanvasObjectView({
           opacity: obj.opacity ?? 1,
           borderRadius: obj.rx ?? obj.ry ?? 0,
           transform,
+          ...animStyle,
         }}
       />
     );
@@ -111,6 +147,7 @@ function CanvasObjectView({
   ) {
     return (
       <div
+        className={cn(animClass)}
         style={{
           position: "absolute",
           left: `${leftPct}%`,
@@ -124,6 +161,7 @@ function CanvasObjectView({
           whiteSpace: "pre-wrap",
           lineHeight: 1.25,
           transform,
+          ...animStyle,
         }}
       >
         {obj.text ?? ""}

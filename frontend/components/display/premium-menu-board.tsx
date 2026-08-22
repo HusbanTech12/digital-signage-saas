@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  AnimatedBoard,
+  AnimatedItem,
+} from "@/components/display/animated-board";
 import type { MenuDisplayConfig } from "@/lib/display/menu-board-theme";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 import type { MenuItem } from "@/lib/types/schema";
@@ -39,20 +43,21 @@ export function PremiumMenuBoard({
   items,
   config: configIn,
   statusLabel,
+  contentKey,
 }: {
   items: MenuItem[];
   config?: Partial<MenuDisplayConfig> | null;
   /** e.g. "Live" or "Preview" */
   statusLabel?: string;
+  /** Remount board animation when this changes (publish / sync). */
+  contentKey?: string;
 }) {
   const config = mergeDisplayConfig(configIn);
   const now = useLiveClock(config.showClock);
+  const anim = config.animations;
 
   const visibleItems = useMemo(
-    () =>
-      config.showSoldOut
-        ? items
-        : items.filter((i) => i.available),
+    () => (config.showSoldOut ? items : items.filter((i) => i.available)),
     [config.showSoldOut, items],
   );
 
@@ -64,7 +69,7 @@ export function PremiumMenuBoard({
     for (const item of visibleItems) {
       const key = config.categories.includes(item.category)
         ? item.category
-        : config.categories[0] ?? "Menu";
+        : (config.categories[0] ?? "Menu");
       const list = map.get(key) ?? [];
       list.push(item);
       map.set(key, list);
@@ -78,8 +83,12 @@ export function PremiumMenuBoard({
     }));
   }, [config.categories, visibleItems]);
 
+  let itemIndex = 0;
+
   return (
-    <div
+    <AnimatedBoard
+      animations={anim}
+      contentKey={contentKey}
       className="relative flex min-h-screen flex-col overflow-hidden px-10 py-8 md:px-14 md:py-10"
       style={{
         backgroundColor: config.backgroundColor,
@@ -162,54 +171,62 @@ export function PremiumMenuBoard({
               <ul className="mt-5 space-y-5">
                 {catItems.map((item) => {
                   const soldOut = !item.available;
+                  const index = itemIndex++;
                   return (
-                    <li
-                      key={item.id}
-                      className={soldOut ? "opacity-55" : undefined}
-                    >
-                      <div className="flex items-baseline gap-2">
-                        <span
-                          className="min-w-0 shrink text-base font-medium md:text-lg"
-                          style={{
-                            color: soldOut ? config.mutedColor : config.textColor,
-                            textDecoration: soldOut ? "line-through" : undefined,
-                          }}
-                        >
-                          {item.name}
-                        </span>
-                        <span
-                          className="min-w-[1rem] flex-1 border-b border-dotted"
-                          style={{
-                            borderColor: `color-mix(in srgb, ${config.mutedColor} 50%, transparent)`,
-                          }}
-                          aria-hidden
-                        />
-                        <span
-                          className="shrink-0 text-base tabular-nums md:text-lg"
-                          style={{
-                            color: soldOut ? config.mutedColor : config.accentColor,
-                            textDecoration: soldOut ? "line-through" : undefined,
-                          }}
-                        >
-                          ${item.price.toFixed(2)}
-                        </span>
-                      </div>
-                      {item.description ? (
-                        <p
-                          className="mt-0.5 text-xs leading-snug md:text-sm"
-                          style={{ color: config.mutedColor }}
-                        >
-                          {item.description}
-                        </p>
-                      ) : null}
-                      {soldOut && config.showSoldOut ? (
-                        <p
-                          className="mt-1 text-[10px] font-semibold tracking-[0.2em] uppercase"
-                          style={{ color: config.soldOutColor }}
-                        >
-                          Sold out
-                        </p>
-                      ) : null}
+                    <li key={item.id} className={soldOut ? "opacity-55" : undefined}>
+                      <AnimatedItem animations={anim} index={index}>
+                        <div className="flex items-baseline gap-2">
+                          <span
+                            className="min-w-0 shrink text-base font-medium md:text-lg"
+                            style={{
+                              color: soldOut
+                                ? config.mutedColor
+                                : config.textColor,
+                              textDecoration: soldOut
+                                ? "line-through"
+                                : undefined,
+                            }}
+                          >
+                            {item.name}
+                          </span>
+                          <span
+                            className="min-w-[1rem] flex-1 border-b border-dotted"
+                            style={{
+                              borderColor: `color-mix(in srgb, ${config.mutedColor} 50%, transparent)`,
+                            }}
+                            aria-hidden
+                          />
+                          <span
+                            className="shrink-0 text-base tabular-nums md:text-lg"
+                            style={{
+                              color: soldOut
+                                ? config.mutedColor
+                                : config.accentColor,
+                              textDecoration: soldOut
+                                ? "line-through"
+                                : undefined,
+                            }}
+                          >
+                            ${item.price.toFixed(2)}
+                          </span>
+                        </div>
+                        {item.description ? (
+                          <p
+                            className="mt-0.5 text-xs leading-snug md:text-sm"
+                            style={{ color: config.mutedColor }}
+                          >
+                            {item.description}
+                          </p>
+                        ) : null}
+                        {soldOut && config.showSoldOut ? (
+                          <p
+                            className="mt-1 text-[10px] font-semibold tracking-[0.2em] uppercase"
+                            style={{ color: config.soldOutColor }}
+                          >
+                            Sold out
+                          </p>
+                        ) : null}
+                      </AnimatedItem>
                     </li>
                   );
                 })}
@@ -218,6 +235,6 @@ export function PremiumMenuBoard({
           </section>
         ))}
       </div>
-    </div>
+    </AnimatedBoard>
   );
 }

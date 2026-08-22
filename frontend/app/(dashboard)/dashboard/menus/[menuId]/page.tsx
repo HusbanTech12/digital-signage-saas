@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PublishMenuDialog } from "@/components/dashboard/publish-menu-dialog";
+import { ContentVersionHistory } from "@/components/dashboard/content-version-history";
 import { useMockSession } from "@/components/providers/mock-session-provider";
 import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
@@ -88,7 +89,7 @@ export default function MenuDetailPage() {
     <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader
         title={menu.name}
-        description={`Version ${menu.version} · ${
+        description={`${menu.status ?? "draft"} · Version ${menu.version} · ${
           menu.publishedAt
             ? `Last published ${new Date(menu.publishedAt).toLocaleString()}`
             : "Never published"
@@ -113,6 +114,12 @@ export default function MenuDetailPage() {
             ) : null}
           </>
         }
+      />
+
+      <ContentVersionHistory
+        entityType="menu"
+        entityId={menu.id}
+        canRestore={canManageMenus(role)}
       />
 
       <div className="rounded-xl border border-border p-4">

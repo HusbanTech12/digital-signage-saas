@@ -43,6 +43,7 @@ export interface Screen {
   status: ScreenStatus;
   activeMenuId: string | null;
   activeTemplateId: string | null;
+  activePlaylistId?: string | null;
   createdAt: string;
 }
 
@@ -59,7 +60,9 @@ export interface Menu {
   organizationId: string;
   name: string;
   version: number;
+  status?: "draft" | "published" | "archived" | string;
   publishedAt: string | null;
+  publishedByUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +94,10 @@ export interface Template {
   /** Target LCD size this layout is designed for */
   resolution: string;
   orientation: ScreenOrientation;
+  status?: "draft" | "published" | "archived" | string;
+  version?: number;
+  publishedAt?: string | null;
+  publishedByUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -226,6 +233,59 @@ export interface MediaAsset {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type PlaylistStatus = "draft" | "published" | "archived";
+export type PlaylistContentType = "menu" | "template" | "image" | "video";
+
+export interface PlaylistItem {
+  id: string;
+  playlistId: string;
+  organizationId: string;
+  sortOrder: number;
+  contentType: PlaylistContentType | string;
+  durationSeconds: number;
+  label: string | null;
+  menuId: string | null;
+  templateId: string | null;
+  mediaAssetId: string | null;
+  transition: string | null;
+  meta?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Playlist {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string;
+  status: PlaylistStatus | string;
+  version: number;
+  priority: number;
+  loop: boolean;
+  publishedAt: string | null;
+  createdByUserId: string | null;
+  publishedByUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: PlaylistItem[];
+  itemCount: number;
+}
+
+export type ContentEntityType = "menu" | "template" | "playlist";
+
+export interface ContentVersion {
+  id: string;
+  organizationId: string;
+  entityType: ContentEntityType | string;
+  entityId: string;
+  version: number;
+  status: string;
+  changeSummary: string | null;
+  publishedByUserId: string | null;
+  createdAt: string;
+  snapshot?: Record<string, unknown> | null;
 }
 
 export interface MockSession {

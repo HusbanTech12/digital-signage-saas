@@ -130,6 +130,7 @@ def _build_display_payload_sync(db: Session, screen: Screen) -> dict | None:
         "canvasJson": canvas,
         "items": items,
         "updatedAt": _utcnow().isoformat(),
+        "playlist": None,
     }
 
 
@@ -205,10 +206,12 @@ def apply_due_themes(db: Session) -> list[dict]:
             if (
                 screen.active_menu_id == winner.menu_id
                 and screen.active_template_id == winner.template_id
+                and screen.active_playlist_id is None
             ):
                 continue
             screen.active_menu_id = winner.menu_id
             screen.active_template_id = winner.template_id
+            screen.active_playlist_id = None
             dirty = True
             payload = _build_display_payload_sync(db, screen)
             if payload is None:

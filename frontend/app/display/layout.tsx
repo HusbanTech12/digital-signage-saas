@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./display-animations.css";
 
 export const metadata: Metadata = {
   title: "Display · Signage",

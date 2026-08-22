@@ -8,6 +8,7 @@ import {
   UtensilsCrossed,
   Images,
   LayoutTemplate,
+  ListVideo,
   CalendarClock,
   Users,
   Settings,
@@ -85,6 +86,18 @@ export const DASHBOARD_NAV: NavItem[] = [
     ],
   },
   {
+    label: "Playlists",
+    href: "/dashboard/playlists",
+    icon: ListVideo,
+    roles: [
+      "super_admin",
+      "admin",
+      "location_manager",
+      "content_manager",
+      "viewer",
+    ],
+  },
+  {
     label: "Templates",
     href: "/dashboard/templates",
     icon: LayoutTemplate,
@@ -123,6 +136,9 @@ export function navForRole(role: Role): NavItem[] {
     }
     if (item.href === "/dashboard/media") {
       return hasPermission(role, PERMISSIONS.MEDIA_READ);
+    }
+    if (item.href === "/dashboard/playlists") {
+      return hasPermission(role, PERMISSIONS.PLAYLISTS_READ);
     }
     return item.roles.includes(role);
   });

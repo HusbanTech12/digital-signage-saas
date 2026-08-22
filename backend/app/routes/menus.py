@@ -56,7 +56,7 @@ async def list_menus(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[Menu]:
-    require_roles(user, "super_admin", "admin", "location_manager")
+    require_roles(user, "super_admin", "admin", "location_manager", "content_manager")
     result = await db.execute(
         select(Menu)
         .where(Menu.organization_id == user.organization_id)
@@ -71,8 +71,14 @@ async def publish_menu(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Menu:
-    require_roles(user, "super_admin", "admin", "location_manager")
+    from app.auth.permissions import SCREENS_PUBLISH, require_permission
+    from app.services import content_versions as cv_service
+    from app.services.audit import record_audit
+
+    require_permission(user, SCREENS_PUBLISH)
     menu = await _get_org_menu_or_404(db, user, body.menu_id)
+    if menu.status == "archived":
+        raise HTTPException(status_code=400, detail="Archived menus cannot be published")
 
     template = await db.get(Template, body.template_id)
     if template is None:
@@ -81,9 +87,44 @@ async def publish_menu(
         raise HTTPException(status_code=404, detail="Template not found")
 
     now = _utcnow()
-    menu.version += 1
+    menu.version = int(menu.version or 0) + 1
+    menu.status = "published"
     menu.published_at = now
+    menu.published_by_user_id = user.id
     menu.updated_at = now
+
+    # Also stamp template as published when used in a menu publish
+    template.version = int(getattr(template, "version", 0) or 0) + 1
+    template.status = "published"
+    template.published_at = now
+    template.published_by_user_id = user.id
+    template.updated_at = now
+    tpl_snap = await cv_service.build_template_snapshot(template)
+    template.published_snapshot = tpl_snap
+
+    snapshot = await cv_service.build_menu_snapshot(db, menu, template)
+    menu.published_snapshot = snapshot
+
+    menu_ver = await cv_service.record_content_version(
+        db,
+        organization_id=user.organization_id,
+        entity_type="menu",
+        entity_id=menu.id,
+        version=menu.version,
+        snapshot=snapshot,
+        publisher=user,
+        change_summary=body.change_summary,
+    )
+    await cv_service.record_content_version(
+        db,
+        organization_id=user.organization_id,
+        entity_type="template",
+        entity_id=template.id,
+        version=template.version,
+        snapshot=tpl_snap,
+        publisher=user,
+        change_summary=body.change_summary or f"Published with menu {menu.name}",
+    )
 
     updated_screens: list[Screen] = []
     if body.screen_ids:
@@ -96,12 +137,27 @@ async def publish_menu(
         for screen in result.scalars().all():
             screen.active_menu_id = menu.id
             screen.active_template_id = template.id
+            screen.active_playlist_id = None
             updated_screens.append(screen)
+
+    await record_audit(
+        db,
+        organization_id=user.organization_id,
+        action="menu.published",
+        actor=user,
+        metadata={
+            "menuId": menu.id,
+            "templateId": template.id,
+            "version": menu.version,
+            "versionId": menu_ver.id,
+            "screenIds": [s.id for s in updated_screens],
+            "changeSummary": body.change_summary,
+        },
+    )
 
     await db.commit()
     await db.refresh(menu)
 
-    # Fan-out realtime events (Redis pub/sub → WebSocket subscribers)
     hub = get_realtime_hub()
     for screen in updated_screens:
         await db.refresh(screen)

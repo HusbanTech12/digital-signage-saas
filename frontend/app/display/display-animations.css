@@ -1,0 +1,175 @@
+/**
+ * Kiosk-safe display animations.
+ * Only opacity + transform (and light clip-path for wipe).
+ * Honors prefers-reduced-motion.
+ */
+
+.dss-board {
+  --dss-duration: 400ms;
+  animation-duration: var(--dss-duration);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  will-change: opacity, transform;
+}
+
+.dss-board--fade {
+  animation-name: dss-fade;
+}
+
+.dss-board--slide {
+  animation-name: dss-slide-left;
+}
+
+.dss-board--slide-up {
+  animation-name: dss-slide-up;
+}
+
+.dss-board--slide-down {
+  animation-name: dss-slide-down;
+}
+
+.dss-board--zoom,
+.dss-board--scale {
+  animation-name: dss-zoom;
+}
+
+.dss-board--wipe {
+  animation-name: dss-wipe;
+}
+
+.dss-board--dissolve {
+  animation-name: dss-dissolve;
+}
+
+.dss-board--pan {
+  animation-name: dss-pan;
+}
+
+.dss-item {
+  --dss-duration: 400ms;
+  animation-duration: var(--dss-duration);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+  animation-delay: var(--dss-item-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.dss-item--fade-in {
+  animation-name: dss-fade;
+}
+
+.dss-item--slide-up {
+  animation-name: dss-slide-up;
+}
+
+.dss-item--slide-left {
+  animation-name: dss-slide-left;
+}
+
+.dss-item--zoom-in,
+.dss-item--scale-in {
+  animation-name: dss-zoom;
+}
+
+@keyframes dss-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dss-slide-left {
+  from {
+    opacity: 0;
+    transform: translate3d(28px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes dss-slide-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes dss-slide-down {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes dss-zoom {
+  from {
+    opacity: 0;
+    transform: scale3d(0.94, 0.94, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes dss-wipe {
+  from {
+    opacity: 0.4;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes dss-dissolve {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes dss-pan {
+  from {
+    opacity: 0;
+    transform: translate3d(-3%, 0, 0) scale3d(1.04, 1.04, 1);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dss-board,
+  .dss-item {
+    animation: none !important;
+    filter: none !important;
+    clip-path: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Low-power hint: after animation ends, drop will-change */
+.dss-board,
+.dss-item {
+  animation-iteration-count: 1;
+}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useApiAuthToken } from "@/lib/api/auth-token";
@@ -15,6 +16,7 @@ export function PublishMenuDialog({
   templates,
   screens,
   defaultTemplateId,
+  onPublished,
 }: {
   open: boolean;
   onClose: () => void;
@@ -22,6 +24,7 @@ export function PublishMenuDialog({
   templates: Template[];
   screens: Screen[];
   defaultTemplateId?: string;
+  onPublished?: () => void;
 }) {
   const { getApiToken } = useApiAuthToken();
   const pairedScreens = useMemo(
@@ -34,6 +37,7 @@ export function PublishMenuDialog({
   const [selected, setSelected] = useState<string[]>(
     pairedScreens.filter((s) => s.status === "online").map((s) => s.id),
   );
+  const [changeSummary, setChangeSummary] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -59,12 +63,14 @@ export function PublishMenuDialog({
           menuId,
           templateId,
           screenIds: selected,
+          changeSummary: changeSummary.trim() || undefined,
         },
         token,
       );
       setSuccess(
         `Published v${menu.version} to ${selected.length} screen${selected.length === 1 ? "" : "s"}.`,
       );
+      onPublished?.();
       setTimeout(onClose, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Publish failed.");
@@ -87,7 +93,8 @@ export function PublishMenuDialog({
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Publish menu</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Choose a template and screens. Live sync arrives in Prompt 8.
+            Creates an immutable snapshot for TVs. Later edits stay off-screen
+            until you publish again.
           </p>
         </div>
 
@@ -107,6 +114,16 @@ export function PublishMenuDialog({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="pub-summary">Change summary (optional)</Label>
+          <Input
+            id="pub-summary"
+            value={changeSummary}
+            onChange={(e) => setChangeSummary(e.target.value)}
+            placeholder="e.g. Updated lunch prices"
+          />
         </div>
 
         <fieldset className="space-y-2">

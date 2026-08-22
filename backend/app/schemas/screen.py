@@ -20,6 +20,7 @@ class ScreenOut(CamelModel):
     status: str
     active_menu_id: str | None
     active_template_id: str | None
+    active_playlist_id: str | None = None
     created_at: datetime
 
 

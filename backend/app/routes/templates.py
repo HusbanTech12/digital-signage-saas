@@ -14,6 +14,8 @@ from app.schemas.template import (
     TemplateOut,
     TemplateUpdate,
 )
+from app.schemas.content_version import PublishTemplateIn
+from app.services import content_versions as cv_service
 from app.utils.ids import new_id
 from db.models import Template, User
 from db.session import get_db
@@ -65,7 +67,7 @@ async def list_templates(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[Template]:
-    require_roles(user, "super_admin", "admin", "location_manager")
+    require_roles(user, "super_admin", "admin", "location_manager", "content_manager")
     result = await db.execute(
         select(Template)
         .where(
@@ -186,6 +188,28 @@ async def update_template(
         template.orientation = body.orientation
 
     template.updated_at = _utcnow()
+    await db.commit()
+    await db.refresh(template)
+    return template
+
+
+@router.post("/{template_id}/publish", response_model=TemplateOut)
+async def publish_template(
+    template_id: str,
+    body: PublishTemplateIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Template:
+    require_roles(user, "super_admin", "admin", "location_manager", "content_manager")
+    template = await _get_visible_template_or_404(db, user, template_id)
+    if template.is_global:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Global templates cannot be published as org versions.",
+        )
+    await cv_service.publish_template(
+        db, user, template, change_summary=body.change_summary
+    )
     await db.commit()
     await db.refresh(template)
     return template

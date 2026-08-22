@@ -3,6 +3,7 @@ from typing import Any
 
 from app.schemas.common import CamelModel
 from app.schemas.menu import MenuItemOut
+from app.schemas.playlist import PlaylistPlaybackOut
 
 
 class DisplayPayloadOut(CamelModel):
@@ -22,6 +23,7 @@ class DisplayPayloadOut(CamelModel):
     display_config: dict[str, Any] | None = None
     items: list[MenuItemOut]
     updated_at: datetime
+    playlist: PlaylistPlaybackOut | None = None
 
 
 class RealtimeEvent(CamelModel):

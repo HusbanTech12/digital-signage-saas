@@ -11,7 +11,9 @@ class MenuOut(CamelModel):
     organization_id: str
     name: str
     version: int
+    status: str = "draft"
     published_at: datetime | None
+    published_by_user_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -23,6 +25,7 @@ class MenuCreate(CamelModel):
 
 class MenuUpdate(CamelModel):
     name: str | None = None
+    status: str | None = None
 
 
 class MenuItemOut(CamelModel):
@@ -70,3 +73,4 @@ class PublishMenuIn(CamelModel):
     menu_id: str
     template_id: str
     screen_ids: list[str] = Field(default_factory=list)
+    change_summary: str | None = None

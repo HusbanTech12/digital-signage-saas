@@ -1,4 +1,10 @@
 /** Premium fixed-layout menu board theme — configured on templates. */
+import {
+  DEFAULT_DISPLAY_ANIMATIONS,
+  mergeAnimations,
+  type DisplayAnimationConfig,
+} from "@/lib/display/animations";
+
 export type MenuBoardLayout = "premium" | "classic";
 
 export interface MenuDisplayConfig {
@@ -17,6 +23,8 @@ export interface MenuDisplayConfig {
   showClock: boolean;
   /** Show unavailable items as SOLD OUT instead of hiding them */
   showSoldOut: boolean;
+  /** Board + item entrance animations (kiosk-safe CSS) */
+  animations: DisplayAnimationConfig;
 }
 
 export const DEFAULT_MENU_DISPLAY_CONFIG: MenuDisplayConfig = {
@@ -31,16 +39,30 @@ export const DEFAULT_MENU_DISPLAY_CONFIG: MenuDisplayConfig = {
   categories: ["Starters", "Mains", "Sweets"],
   showClock: true,
   showSoldOut: true,
+  animations: { ...DEFAULT_DISPLAY_ANIMATIONS },
 };
 
 export function mergeDisplayConfig(
   partial?: Partial<MenuDisplayConfig> | null,
 ): MenuDisplayConfig {
-  if (!partial) return { ...DEFAULT_MENU_DISPLAY_CONFIG };
+  if (!partial) {
+    return {
+      ...DEFAULT_MENU_DISPLAY_CONFIG,
+      animations: { ...DEFAULT_DISPLAY_ANIMATIONS },
+      categories: [...DEFAULT_MENU_DISPLAY_CONFIG.categories],
+    };
+  }
   return {
     ...DEFAULT_MENU_DISPLAY_CONFIG,
     ...partial,
     categories:
-      partial.categories?.length ? partial.categories : DEFAULT_MENU_DISPLAY_CONFIG.categories,
+      partial.categories?.length
+        ? partial.categories
+        : [...DEFAULT_MENU_DISPLAY_CONFIG.categories],
+    animations: mergeAnimations(
+      partial.animations ?? DEFAULT_DISPLAY_ANIMATIONS,
+    ),
   };
 }
+
+export type { DisplayAnimationConfig };

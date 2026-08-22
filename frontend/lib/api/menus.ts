@@ -79,7 +79,12 @@ export function deleteMenuItemApi(token: Token, itemId: string) {
 
 export function publishMenuApi(
   token: Token,
-  input: { menuId: string; templateId: string; screenIds: string[] },
+  input: {
+    menuId: string;
+    templateId: string;
+    screenIds: string[];
+    changeSummary?: string | null;
+  },
 ) {
   return apiFetch<Menu>("/api/v1/menus/publish", {
     method: "POST",
