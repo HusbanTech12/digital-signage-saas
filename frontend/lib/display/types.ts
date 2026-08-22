@@ -23,15 +23,6 @@ export interface PlaylistSlide {
   mediaMimeType: string | null;
   mediaKind: string | null;
   mediaName: string | null;
-  posterUrl?: string | null;
-  muted?: boolean | null;
-  loop?: boolean | null;
-  trimStartSeconds?: number | null;
-  trimEndSeconds?: number | null;
-  cropX?: number | null;
-  cropY?: number | null;
-  cropW?: number | null;
-  cropH?: number | null;
 }
 
 export interface PlaylistPlayback {
@@ -61,6 +52,7 @@ export interface DisplayPayload {
   updatedAt: string;
   playlist?: PlaylistPlayback | null;
   wall?: WallInfo | null;
+  audio?: AudioPlayback | null;
 }
 
 export interface WallInfo {
@@ -74,6 +66,24 @@ export interface WallInfo {
   contentMode: "shared" | "tiled" | string;
   syncEpochMs: number | null;
   bezelCompensationPct?: number;
+}
+
+export interface AudioTrackPlayback {
+  id: string;
+  url: string;
+  mimeType?: string | null;
+  name?: string | null;
+  durationSeconds?: number | null;
+}
+
+export interface AudioPlayback {
+  playlistId: string;
+  name: string;
+  version: number;
+  loop: boolean;
+  volume: number;
+  muted: boolean;
+  tracks: AudioTrackPlayback[];
 }
 
 export type DisplaySource = "live" | "cache" | "none";

@@ -43,5 +43,9 @@ export function collectRawAssetUrls(payload: DisplayPayload): string[] {
     walkCanvas(slide.canvasJson);
   }
 
+  for (const track of payload.audio?.tracks ?? []) {
+    add(track.url);
+  }
+
   return [...urls];
 }

@@ -6,10 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.schemas.audio_playlist import AudioPlaybackOut, AudioTrackPlaybackOut
 from app.schemas.display import DisplayPayloadOut, WallInfoOut
 from app.schemas.menu import MenuItemOut
 from app.schemas.playlist import PlaylistPlaybackOut, PlaylistSlideOut
 from db.models import MediaAsset, Menu, MenuItem, Playlist, Screen, Template
+from db.models.audio_playlist import AudioPlaylist
 
 
 def _utcnow() -> datetime:
@@ -102,16 +104,6 @@ def _playlist_from_snapshot(snap: dict[str, Any]) -> PlaylistPlaybackOut | None:
                 media_mime_type=s.get("mediaMimeType") or s.get("media_mime_type"),
                 media_kind=s.get("mediaKind") or s.get("media_kind"),
                 media_name=s.get("mediaName") or s.get("media_name"),
-                poster_url=s.get("posterUrl") or s.get("poster_url"),
-                muted=s.get("muted"),
-                loop=s.get("loop"),
-                trim_start_seconds=s.get("trimStartSeconds")
-                or s.get("trim_start_seconds"),
-                trim_end_seconds=s.get("trimEndSeconds") or s.get("trim_end_seconds"),
-                crop_x=s.get("cropX") if "cropX" in s else s.get("crop_x"),
-                crop_y=s.get("cropY") if "cropY" in s else s.get("crop_y"),
-                crop_w=s.get("cropW") if "cropW" in s else s.get("crop_w"),
-                crop_h=s.get("cropH") if "cropH" in s else s.get("crop_h"),
             )
         )
     return PlaylistPlaybackOut(
@@ -210,25 +202,12 @@ async def _resolve_playlist_playback(
             slide.media_mime_type = asset.mime_type
             slide.media_kind = asset.kind
             slide.media_name = asset.name
-            slide.poster_url = asset.poster_url or asset.thumbnail_url
-            slide.muted = bool(asset.muted) if asset.muted is not None else True
-            slide.loop = bool(asset.loop)
-            slide.trim_start_seconds = asset.trim_start_seconds
-            slide.trim_end_seconds = asset.trim_end_seconds
-            slide.crop_x = asset.crop_x
-            slide.crop_y = asset.crop_y
-            slide.crop_w = asset.crop_w
-            slide.crop_h = asset.crop_h
-            if row.content_type == "video":
-                playable = asset.duration_seconds
-                if (
-                    asset.trim_start_seconds is not None
-                    and asset.trim_end_seconds is not None
-                    and asset.trim_end_seconds > asset.trim_start_seconds
-                ):
-                    playable = asset.trim_end_seconds - asset.trim_start_seconds
-                if playable and row.duration_seconds <= 10:
-                    slide.duration_seconds = max(1, int(playable))
+            if (
+                row.content_type == "video"
+                and asset.duration_seconds
+                and row.duration_seconds <= 10
+            ):
+                slide.duration_seconds = max(1, int(asset.duration_seconds))
         else:
             continue
         slides.append(slide)
@@ -366,6 +345,79 @@ async def build_display_payload(
         updated_at=_utcnow(),
         playlist=playlist_playback,
         wall=await _wall_for_screen(db, screen),
+        audio=await _audio_for_screen(db, screen),
+    )
+
+
+async def _audio_for_screen(
+    db: AsyncSession, screen: Screen
+) -> AudioPlaybackOut | None:
+    if not screen.active_audio_playlist_id:
+        return None
+    result = await db.execute(
+        select(AudioPlaylist)
+        .where(AudioPlaylist.id == screen.active_audio_playlist_id)
+        .options(selectinload(AudioPlaylist.tracks))
+    )
+    playlist = result.scalar_one_or_none()
+    if playlist is None or playlist.organization_id != screen.organization_id:
+        return None
+
+    tracks: list[AudioTrackPlaybackOut] = []
+    snap = playlist.published_snapshot if isinstance(playlist.published_snapshot, dict) else None
+    if snap and snap.get("tracks"):
+        for raw in snap["tracks"]:
+            url = raw.get("url")
+            if not url:
+                continue
+            tracks.append(
+                AudioTrackPlaybackOut(
+                    id=str(raw.get("id") or ""),
+                    url=str(url),
+                    mime_type=raw.get("mimeType") or raw.get("mime_type"),
+                    name=raw.get("name"),
+                    duration_seconds=(
+                        float(raw["durationSeconds"])
+                        if raw.get("durationSeconds") is not None
+                        else (
+                            float(raw["duration_seconds"])
+                            if raw.get("duration_seconds") is not None
+                            else None
+                        )
+                    ),
+                )
+            )
+    else:
+        for t in sorted(playlist.tracks, key=lambda x: x.sort_order):
+            asset = await db.get(MediaAsset, t.media_asset_id)
+            if asset is None or not asset.url:
+                continue
+            tracks.append(
+                AudioTrackPlaybackOut(
+                    id=t.id,
+                    url=asset.url,
+                    mime_type=asset.mime_type,
+                    name=t.label or asset.name,
+                    duration_seconds=float(asset.duration_seconds)
+                    if asset.duration_seconds is not None
+                    else None,
+                )
+            )
+
+    if not tracks:
+        return None
+
+    volume = float(getattr(screen, "audio_volume", None) or playlist.volume or 0.5)
+    loop = bool(getattr(screen, "audio_loop", True))
+    muted = bool(getattr(screen, "audio_muted", False))
+    return AudioPlaybackOut(
+        playlist_id=playlist.id,
+        name=playlist.name,
+        version=int(playlist.version or 1),
+        loop=loop if loop is not None else bool(playlist.loop),
+        volume=max(0.0, min(1.0, volume)),
+        muted=muted,
+        tracks=tracks,
     )
 
 

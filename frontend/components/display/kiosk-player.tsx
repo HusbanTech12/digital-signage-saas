@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BackgroundAudioPlayer } from "@/components/display/background-audio-player";
 import { CanvasBoard } from "@/components/display/canvas-board";
 import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
 import { PlaylistPlayer } from "@/components/display/playlist-player";
@@ -401,6 +402,10 @@ export function KioskPlayer({
           ) : null}
         </>
       )}
+
+      {payload.audio && payload.audio.tracks.length > 0 ? (
+        <BackgroundAudioPlayer audio={payload.audio} />
+      ) : null}
 
       {!playlist && showCanvas && payload.items.length > 0 ? (
         <div className="pointer-events-none absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent px-6 pt-16 pb-5">

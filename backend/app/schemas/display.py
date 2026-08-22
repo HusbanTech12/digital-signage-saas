@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from app.schemas.audio_playlist import AudioPlaybackOut
 from app.schemas.common import CamelModel
 from app.schemas.menu import MenuItemOut
 from app.schemas.playlist import PlaylistPlaybackOut
@@ -40,6 +41,7 @@ class DisplayPayloadOut(CamelModel):
     updated_at: datetime
     playlist: PlaylistPlaybackOut | None = None
     wall: WallInfoOut | None = None
+    audio: AudioPlaybackOut | None = None
 
 
 class RealtimeEvent(CamelModel):

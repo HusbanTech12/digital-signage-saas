@@ -44,6 +44,10 @@ export interface Screen {
   activeMenuId: string | null;
   activeTemplateId: string | null;
   activePlaylistId?: string | null;
+  activeAudioPlaylistId?: string | null;
+  audioVolume?: number;
+  audioMuted?: boolean;
+  audioLoop?: boolean;
   lastSyncAt?: string | null;
   lastError?: string | null;
   lastErrorAt?: string | null;
@@ -238,16 +242,6 @@ export interface MediaAsset {
   width: number | null;
   height: number | null;
   durationSeconds: number | null;
-  thumbnailUrl?: string | null;
-  posterUrl?: string | null;
-  trimStartSeconds?: number | null;
-  trimEndSeconds?: number | null;
-  cropX?: number | null;
-  cropY?: number | null;
-  cropW?: number | null;
-  cropH?: number | null;
-  muted?: boolean;
-  loop?: boolean;
   tags: string[];
   usageCount: number;
   uploadedByUserId: string | null;

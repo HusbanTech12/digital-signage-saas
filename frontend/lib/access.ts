@@ -88,6 +88,17 @@ export function canPublishPlaylists(role: Role) {
   return hasPermission(role, PERMISSIONS.PLAYLISTS_PUBLISH);
 }
 
+export function canManageAudio(role: Role) {
+  return (
+    hasPermission(role, PERMISSIONS.AUDIO_CREATE) ||
+    hasPermission(role, PERMISSIONS.AUDIO_UPDATE)
+  );
+}
+
+export function canPublishAudio(role: Role) {
+  return hasPermission(role, PERMISSIONS.AUDIO_PUBLISH);
+}
+
 /** Open / edit designer canvas (includes Location Manager for publish flow). */
 export function canEditDesigner(role: Role) {
   return canManageMenus(role);

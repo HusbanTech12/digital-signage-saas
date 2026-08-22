@@ -21,6 +21,10 @@ class ScreenOut(CamelModel):
     active_menu_id: str | None
     active_template_id: str | None
     active_playlist_id: str | None = None
+    active_audio_playlist_id: str | None = None
+    audio_volume: float = 0.5
+    audio_muted: bool = False
+    audio_loop: bool = True
     last_sync_at: datetime | None = None
     last_error: str | None = None
     last_error_at: datetime | None = None
@@ -40,6 +44,11 @@ class ScreenUpdate(CamelModel):
     location_id: str | None = None
     orientation: ScreenOrientation | None = None
     resolution: str | None = None
+    active_audio_playlist_id: str | None = None
+    audio_volume: float | None = None
+    audio_muted: bool | None = None
+    audio_loop: bool | None = None
+    clear_audio_playlist: bool = False
 
 
 class ScreenHeartbeatIn(CamelModel):

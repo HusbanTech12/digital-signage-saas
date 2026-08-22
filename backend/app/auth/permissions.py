@@ -49,6 +49,11 @@ PLAYLISTS_CREATE = "playlists.create"
 PLAYLISTS_UPDATE = "playlists.update"
 PLAYLISTS_DELETE = "playlists.delete"
 PLAYLISTS_PUBLISH = "playlists.publish"
+AUDIO_READ = "audio.read"
+AUDIO_CREATE = "audio.create"
+AUDIO_UPDATE = "audio.update"
+AUDIO_DELETE = "audio.delete"
+AUDIO_PUBLISH = "audio.publish"
 SCHEDULES_READ = "schedules.read"
 SCHEDULES_CREATE = "schedules.create"
 SCHEDULES_UPDATE = "schedules.update"
@@ -94,6 +99,11 @@ ALL_PERMISSIONS: frozenset[str] = frozenset(
         PLAYLISTS_UPDATE,
         PLAYLISTS_DELETE,
         PLAYLISTS_PUBLISH,
+        AUDIO_READ,
+        AUDIO_CREATE,
+        AUDIO_UPDATE,
+        AUDIO_DELETE,
+        AUDIO_PUBLISH,
         SCHEDULES_READ,
         SCHEDULES_CREATE,
         SCHEDULES_UPDATE,
@@ -125,6 +135,11 @@ _CONTENT_PERMS = frozenset(
         PLAYLISTS_UPDATE,
         PLAYLISTS_DELETE,
         PLAYLISTS_PUBLISH,
+        AUDIO_READ,
+        AUDIO_CREATE,
+        AUDIO_UPDATE,
+        AUDIO_DELETE,
+        AUDIO_PUBLISH,
         SCHEDULES_READ,
         SCHEDULES_CREATE,
         SCHEDULES_UPDATE,
@@ -164,6 +179,11 @@ _LOCATION_MANAGER_PERMS = frozenset(
         PLAYLISTS_UPDATE,
         PLAYLISTS_DELETE,
         PLAYLISTS_PUBLISH,
+        AUDIO_READ,
+        AUDIO_CREATE,
+        AUDIO_UPDATE,
+        AUDIO_DELETE,
+        AUDIO_PUBLISH,
         SCHEDULES_READ,
         SCHEDULES_CREATE,
         SCHEDULES_UPDATE,
@@ -183,6 +203,7 @@ _VIEWER_PERMS = frozenset(
         TEMPLATES_READ,
         MEDIA_READ,
         PLAYLISTS_READ,
+        AUDIO_READ,
         SCHEDULES_READ,
         POS_READ,
         ANALYTICS_READ,

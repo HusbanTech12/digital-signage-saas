@@ -9,6 +9,7 @@ import {
   Images,
   LayoutTemplate,
   ListVideo,
+  Music,
   LayoutGrid,
   CalendarClock,
   Users,
@@ -105,6 +106,18 @@ export const DASHBOARD_NAV: NavItem[] = [
     ],
   },
   {
+    label: "Audio",
+    href: "/dashboard/audio",
+    icon: Music,
+    roles: [
+      "super_admin",
+      "admin",
+      "location_manager",
+      "content_manager",
+      "viewer",
+    ],
+  },
+  {
     label: "Templates",
     href: "/dashboard/templates",
     icon: LayoutTemplate,
@@ -146,6 +159,9 @@ export function navForRole(role: Role): NavItem[] {
     }
     if (item.href === "/dashboard/playlists") {
       return hasPermission(role, PERMISSIONS.PLAYLISTS_READ);
+    }
+    if (item.href === "/dashboard/audio") {
+      return hasPermission(role, PERMISSIONS.AUDIO_READ);
     }
     return item.roles.includes(role);
   });

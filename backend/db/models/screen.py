@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
@@ -34,6 +34,14 @@ class Screen(Base):
     active_playlist_id: Mapped[str | None] = mapped_column(
         String(64), ForeignKey("playlists.id", ondelete="SET NULL"), nullable=True
     )
+    active_audio_playlist_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("audio_playlists.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    audio_volume: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    audio_muted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    audio_loop: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # Advanced device management
     last_sync_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

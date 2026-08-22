@@ -1,4 +1,5 @@
 from db.models.audit_log import AuditLog
+from db.models.audio_playlist import AudioPlaylist, AudioPlaylistTrack
 from db.models.content_version import ContentVersion
 from db.models.invitation import Invitation
 from db.models.location import Location
@@ -34,5 +35,7 @@ __all__ = [
     "MediaAsset",
     "Playlist",
     "PlaylistItem",
+    "AudioPlaylist",
+    "AudioPlaylistTrack",
     "ContentVersion",
 ]

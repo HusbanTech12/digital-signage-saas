@@ -147,6 +147,16 @@ async def update_screen(
         screen.orientation = body.orientation
     if body.resolution is not None:
         screen.resolution = body.resolution.strip()
+    if body.clear_audio_playlist:
+        screen.active_audio_playlist_id = None
+    elif body.active_audio_playlist_id is not None:
+        screen.active_audio_playlist_id = body.active_audio_playlist_id
+    if body.audio_volume is not None:
+        screen.audio_volume = max(0.0, min(1.0, float(body.audio_volume)))
+    if body.audio_muted is not None:
+        screen.audio_muted = body.audio_muted
+    if body.audio_loop is not None:
+        screen.audio_loop = body.audio_loop
 
     await db.commit()
     await db.refresh(screen)

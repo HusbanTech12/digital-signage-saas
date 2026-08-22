@@ -92,7 +92,8 @@ export function connectScreenRealtime(
         if (
           (data.type === "menu.published" ||
             data.type === "playlist.published" ||
-            data.type === "wall.published") &&
+            data.type === "wall.published" ||
+            data.type === "audio.published") &&
           isDisplayPayload(data.payload)
         ) {
           handlers.onPayload(data.payload);

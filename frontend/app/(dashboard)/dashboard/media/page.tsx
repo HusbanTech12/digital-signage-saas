@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Folder, ImageIcon, Music, Upload, Video } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -166,7 +165,7 @@ export default function MediaLibraryPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
         title="Media Library"
-          description="Upload and organize images, videos, audio, logos, and promo assets. Open Edit video for trim, poster, mute, and crop."
+        description="Upload and organize images, videos, audio, logos, and promo assets for menus and templates."
         actions={
           <div className="flex flex-wrap gap-2">
             {canUploadMedia(role) ? (
@@ -318,29 +317,19 @@ export default function MediaLibraryPage() {
                   className="overflow-hidden rounded-xl border border-border"
                 >
                   <div className="relative aspect-video bg-muted/50">
-                    {asset.kind === "video" || asset.mimeType.startsWith("video/") ? (
-                      asset.posterUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={resolveMediaUrl(asset.posterUrl)}
-                          alt={asset.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <video
-                          src={resolveMediaUrl(asset.url)}
-                          className="h-full w-full object-cover"
-                          muted
-                          playsInline
-                          preload="metadata"
-                        />
-                      )
-                    ) : asset.mimeType.startsWith("image/") ? (
+                    {asset.mimeType.startsWith("image/") ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={resolveMediaUrl(asset.url)}
                         alt={asset.name}
                         className="h-full w-full object-cover"
+                      />
+                    ) : asset.mimeType.startsWith("video/") ? (
+                      <video
+                        src={resolveMediaUrl(asset.url)}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -354,9 +343,6 @@ export default function MediaLibraryPage() {
                         <p className="truncate font-medium">{asset.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {asset.kind} · {formatBytes(asset.sizeBytes)}
-                          {asset.durationSeconds
-                            ? ` · ${Math.round(asset.durationSeconds)}s`
-                            : ""}
                           {asset.usageCount > 0
                             ? ` · used ${asset.usageCount}×`
                             : ""}
@@ -372,19 +358,6 @@ export default function MediaLibraryPage() {
                       </p>
                     ) : null}
                     <div className="flex flex-wrap gap-1">
-                      {(asset.kind === "video" ||
-                        asset.mimeType.startsWith("video/")) &&
-                      hasPermission(role, PERMISSIONS.MEDIA_UPDATE) ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          render={
-                            <Link href={`/dashboard/media/${asset.id}`} />
-                          }
-                        >
-                          Edit video
-                        </Button>
-                      ) : null}
                       {hasPermission(role, PERMISSIONS.MEDIA_UPDATE) ? (
                         <Button
                           size="sm"

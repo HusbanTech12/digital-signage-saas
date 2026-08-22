@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routes import (
+    audio_playlists,
     content_versions,
     dev,
     health,
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(invitations.router)
     app.include_router(media.router)
     app.include_router(playlists.router)
+    app.include_router(audio_playlists.router)
     app.include_router(content_versions.router)
     app.include_router(dev.router)
 
