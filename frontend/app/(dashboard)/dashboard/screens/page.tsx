@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PairScreenDialog } from "@/components/dashboard/pair-screen-dialog";
@@ -349,8 +349,39 @@ function EditScreenDialog({
   const [presetId, setPresetId] = useState(
     lcdPresetSelectValue(screen.resolution, screen.orientation),
   );
+  const [audioPlaylistId, setAudioPlaylistId] = useState(
+    screen.activeAudioPlaylistId ?? "",
+  );
+  const [audioVolume, setAudioVolume] = useState(screen.audioVolume ?? 0.5);
+  const [audioMuted, setAudioMuted] = useState(screen.audioMuted ?? false);
+  const [audioLoop, setAudioLoop] = useState(screen.audioLoop ?? true);
+  const [audioPlaylists, setAudioPlaylists] = useState<
+    { id: string; name: string }[]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getApiToken();
+        if (!token) return;
+        const { listAudioPlaylists } = await import("@/lib/data/audio-playlists");
+        const result = await listAudioPlaylists(token);
+        if (!cancelled) {
+          setAudioPlaylists(
+            result.audioPlaylists.map((p) => ({ id: p.id, name: p.name })),
+          );
+        }
+      } catch {
+        /* optional — screen edit still works without playlist list */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getApiToken]);
 
   const activePreset =
     presetId === CUSTOM_LCD_PRESET_ID
@@ -375,6 +406,7 @@ function EditScreenDialog({
         throw new Error("Resolution must look like 1920x1080.");
       }
       const token = await getApiToken();
+      const clearAudio = !audioPlaylistId;
       await updateScreen(
         screen.id,
         {
@@ -382,6 +414,12 @@ function EditScreenDialog({
           locationId: locationId || null,
           orientation,
           resolution: resolution.trim(),
+          audioVolume,
+          audioMuted,
+          audioLoop,
+          ...(clearAudio
+            ? { clearAudioPlaylist: true }
+            : { activeAudioPlaylistId: audioPlaylistId }),
         },
         token,
       );
@@ -403,7 +441,7 @@ function EditScreenDialog({
       />
       <form
         onSubmit={handleSubmit}
-        className="relative w-full max-w-md space-y-3 rounded-xl border border-border bg-background p-5 shadow-lg"
+        className="relative max-h-[90vh] w-full max-w-md space-y-3 overflow-y-auto rounded-xl border border-border bg-background p-5 shadow-lg"
       >
         <h2 className="text-lg font-semibold tracking-tight">Edit screen</h2>
         <div className="space-y-1.5">
@@ -479,6 +517,63 @@ function EditScreenDialog({
             </div>
           </div>
         ) : null}
+
+        <div className="space-y-3 border-t border-border pt-3">
+          <h3 className="text-sm font-semibold">Background music</h3>
+          <div className="space-y-1.5">
+            <Label htmlFor="scr-audio">Audio playlist</Label>
+            <select
+              id="scr-audio"
+              value={audioPlaylistId}
+              onChange={(e) => setAudioPlaylistId(e.target.value)}
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">None</option>
+              {audioPlaylists.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Build playlists under Audio, or leave None to clear.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={audioMuted}
+                onChange={(e) => setAudioMuted(e.target.checked)}
+              />
+              Mute
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={audioLoop}
+                onChange={(e) => setAudioLoop(e.target.checked)}
+              />
+              Loop
+            </label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="scr-vol">Volume</Label>
+              <input
+                id="scr-vol"
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={audioVolume}
+                onChange={(e) => setAudioVolume(Number(e.target.value))}
+              />
+              <span className="tabular-nums text-muted-foreground">
+                {Math.round(audioVolume * 100)}%
+              </span>
+            </div>
+          </div>
+        </div>
+
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>

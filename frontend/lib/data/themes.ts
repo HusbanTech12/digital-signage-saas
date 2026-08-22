@@ -28,6 +28,8 @@ export type ThemeInput = {
   endDate: string | null;
   menuId: string;
   templateId: string;
+  audioPlaylistId?: string | null;
+  clearAudioPlaylist?: boolean;
   locationIds: string[];
   enabled: boolean;
 };

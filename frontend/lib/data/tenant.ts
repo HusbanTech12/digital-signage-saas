@@ -219,8 +219,18 @@ export async function deleteLocation(
 export async function updateScreen(
   screenId: string,
   patch: Partial<
-    Pick<Screen, "name" | "locationId" | "orientation" | "resolution">
-  >,
+    Pick<
+      Screen,
+      | "name"
+      | "locationId"
+      | "orientation"
+      | "resolution"
+      | "activeAudioPlaylistId"
+      | "audioVolume"
+      | "audioMuted"
+      | "audioLoop"
+    >
+  > & { clearAudioPlaylist?: boolean },
   token?: Token | null,
 ): Promise<Screen> {
   if (useLiveApi() && token) {

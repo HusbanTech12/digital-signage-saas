@@ -132,6 +132,8 @@ export interface Theme {
   endDate: string | null;
   menuId: string;
   templateId: string;
+  /** Optional background music playlist applied when this theme wins. */
+  audioPlaylistId?: string | null;
   locationIds: string[];
   enabled: boolean;
   createdAt: string;

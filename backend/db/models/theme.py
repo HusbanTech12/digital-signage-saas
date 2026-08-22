@@ -26,6 +26,11 @@ class Theme(Base):
     template_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("templates.id", ondelete="CASCADE"), nullable=False
     )
+    audio_playlist_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("audio_playlists.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     location_ids: Mapped[list[str]] = mapped_column(
         ARRAY(String(64)), nullable=False, default=list
     )

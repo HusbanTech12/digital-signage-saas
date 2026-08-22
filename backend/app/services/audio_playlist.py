@@ -97,8 +97,14 @@ async def _replace_tracks(
     playlist: AudioPlaylist,
     tracks: list[AudioTrackIn],
 ) -> None:
-    for existing in list(playlist.tracks):
-        await db.delete(existing)
+    # Explicit query — avoid lazy-loading playlist.tracks (MissingGreenlet under async).
+    existing = await db.execute(
+        select(AudioPlaylistTrack).where(
+            AudioPlaylistTrack.audio_playlist_id == playlist.id
+        )
+    )
+    for row in existing.scalars().all():
+        await db.delete(row)
     await db.flush()
     for idx, t in enumerate(tracks):
         db.add(
@@ -135,7 +141,8 @@ async def create_audio_playlist(
     )
     db.add(playlist)
     await db.flush()
-    await _replace_tracks(db, playlist, body.tracks)
+    if body.tracks:
+        await _replace_tracks(db, playlist, body.tracks)
     await db.commit()
     return await get_org_audio_playlist_or_404(db, user, playlist.id)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { useMockSession } from "@/components/providers/mock-session-provider";
 import { useMockStore } from "@/components/providers/mock-data-provider";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApiAuthToken } from "@/lib/api/auth-token";
 import { canManageThemes, filterLocationsForUser } from "@/lib/access";
+import { listAudioPlaylists } from "@/lib/data/audio-playlists";
 import {
   applyThemesNow,
   createTheme,
@@ -26,6 +27,7 @@ type FormState = {
   endDate: string;
   menuId: string;
   templateId: string;
+  audioPlaylistId: string;
   locationIds: string[];
   enabled: boolean;
 };
@@ -39,6 +41,7 @@ const emptyForm = (defaults?: Partial<FormState>): FormState => ({
   endDate: "",
   menuId: "",
   templateId: "",
+  audioPlaylistId: "",
   locationIds: [],
   enabled: true,
   ...defaults,
@@ -53,6 +56,30 @@ export default function ThemesPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [audioPlaylists, setAudioPlaylists] = useState<
+    { id: string; name: string }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getApiToken();
+        if (!token) return;
+        const result = await listAudioPlaylists(token);
+        if (!cancelled) {
+          setAudioPlaylists(
+            result.audioPlaylists.map((p) => ({ id: p.id, name: p.name })),
+          );
+        }
+      } catch {
+        /* themes still work without audio list */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getApiToken]);
 
   const visibleLocations = useMemo(
     () => filterLocationsForUser(locations, session.user),
@@ -121,6 +148,7 @@ export default function ThemesPage() {
       endDate: theme.endDate ?? "",
       menuId: theme.menuId,
       templateId: theme.templateId,
+      audioPlaylistId: theme.audioPlaylistId ?? "",
       locationIds: [...theme.locationIds],
       enabled: theme.enabled,
     });
@@ -144,6 +172,7 @@ export default function ThemesPage() {
         endDate: form.kind === "date_range" ? form.endDate : null,
         menuId: form.menuId,
         templateId: form.templateId,
+        audioPlaylistId: form.audioPlaylistId || null,
         locationIds: form.locationIds,
         enabled: form.enabled,
       };
@@ -155,7 +184,14 @@ export default function ThemesPage() {
         throw new Error("Select at least one location");
       }
       if (editing) {
-        await updateTheme(editing.id, payload, token);
+        await updateTheme(
+          editing.id,
+          {
+            ...payload,
+            clearAudioPlaylist: !form.audioPlaylistId,
+          },
+          token,
+        );
       } else {
         await createTheme(payload, token);
       }
@@ -472,6 +508,27 @@ export default function ThemesPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="theme-audio">Background music (optional)</Label>
+              <select
+                id="theme-audio"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={form.audioPlaylistId}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, audioPlaylistId: e.target.value }))
+                }
+              >
+                <option value="">None</option>
+                {audioPlaylists.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                When this theme is active, screens get this audio playlist.
+              </p>
             </div>
           </div>
 

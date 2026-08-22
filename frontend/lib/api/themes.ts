@@ -19,6 +19,7 @@ export function createThemeApi(
     endDate: string | null;
     menuId: string;
     templateId: string;
+    audioPlaylistId?: string | null;
     locationIds: string[];
     enabled: boolean;
   },
@@ -42,6 +43,8 @@ export function updateThemeApi(
     endDate: string | null;
     menuId: string;
     templateId: string;
+    audioPlaylistId: string | null;
+    clearAudioPlaylist: boolean;
     locationIds: string[];
     enabled: boolean;
   }>,

@@ -90,12 +90,26 @@ export function listScreens(token: AuthToken) {
   return apiFetch<Screen[]>("/api/v1/screens", { token });
 }
 
+export type ScreenUpdatePatch = Partial<
+  Pick<
+    Screen,
+    | "name"
+    | "locationId"
+    | "orientation"
+    | "resolution"
+    | "activeAudioPlaylistId"
+    | "audioVolume"
+    | "audioMuted"
+    | "audioLoop"
+  >
+> & {
+  clearAudioPlaylist?: boolean;
+};
+
 export function updateScreenApi(
   token: AuthToken,
   screenId: string,
-  patch: Partial<
-    Pick<Screen, "name" | "locationId" | "orientation" | "resolution">
-  >,
+  patch: ScreenUpdatePatch,
 ) {
   return apiFetch<Screen>(`/api/v1/screens/${screenId}`, {
     method: "PATCH",

@@ -25,6 +25,7 @@ from app.services.pairing import utcnow
 from app.services.realtime import get_realtime_hub
 from app.utils.ids import new_id
 from db.models import Location, Screen, User
+from db.models.audio_playlist import AudioPlaylist
 from db.session import get_db
 
 router = APIRouter(prefix="/api/v1/screens", tags=["screens"])
@@ -150,7 +151,10 @@ async def update_screen(
     if body.clear_audio_playlist:
         screen.active_audio_playlist_id = None
     elif body.active_audio_playlist_id is not None:
-        screen.active_audio_playlist_id = body.active_audio_playlist_id
+        playlist = await db.get(AudioPlaylist, body.active_audio_playlist_id)
+        if playlist is None or playlist.organization_id != user.organization_id:
+            raise HTTPException(status_code=404, detail="Audio playlist not found")
+        screen.active_audio_playlist_id = playlist.id
     if body.audio_volume is not None:
         screen.audio_volume = max(0.0, min(1.0, float(body.audio_volume)))
     if body.audio_muted is not None:

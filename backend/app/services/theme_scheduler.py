@@ -203,15 +203,20 @@ def apply_due_themes(db: Session) -> list[dict]:
             )
         ).all()
         for screen in screens:
+            desired_audio = winner.audio_playlist_id
             if (
                 screen.active_menu_id == winner.menu_id
                 and screen.active_template_id == winner.template_id
                 and screen.active_playlist_id is None
+                and screen.active_audio_playlist_id == desired_audio
             ):
                 continue
             screen.active_menu_id = winner.menu_id
             screen.active_template_id = winner.template_id
             screen.active_playlist_id = None
+            # Only change background audio when the theme specifies a playlist.
+            if desired_audio is not None:
+                screen.active_audio_playlist_id = desired_audio
             dirty = True
             payload = _build_display_payload_sync(db, screen)
             if payload is None:

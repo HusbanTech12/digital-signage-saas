@@ -249,12 +249,26 @@ export function deleteLocation(locationId: string) {
 export function updateScreen(
   screenId: string,
   patch: Partial<
-    Pick<Screen, "name" | "locationId" | "orientation" | "resolution">
-  >,
+    Pick<
+      Screen,
+      | "name"
+      | "locationId"
+      | "orientation"
+      | "resolution"
+      | "activeAudioPlaylistId"
+      | "audioVolume"
+      | "audioMuted"
+      | "audioLoop"
+    >
+  > & { clearAudioPlaylist?: boolean },
 ): Screen {
   const screen = screensState.find((s) => s.id === screenId);
   if (!screen) throw new Error("Screen not found");
-  Object.assign(screen, patch);
+  const { clearAudioPlaylist, ...rest } = patch;
+  Object.assign(screen, rest);
+  if (clearAudioPlaylist) {
+    screen.activeAudioPlaylistId = null;
+  }
   emit();
   return { ...screen };
 }
@@ -723,6 +737,7 @@ export function createTheme(input: {
   endDate: string | null;
   menuId: string;
   templateId: string;
+  audioPlaylistId?: string | null;
   locationIds: string[];
   enabled: boolean;
 }): Theme {
@@ -737,6 +752,7 @@ export function createTheme(input: {
     endDate: input.endDate,
     menuId: input.menuId,
     templateId: input.templateId,
+    audioPlaylistId: input.audioPlaylistId ?? null,
     locationIds: [...input.locationIds],
     enabled: input.enabled,
     createdAt: nowIso(),
@@ -759,19 +775,26 @@ export function updateTheme(
       | "endDate"
       | "menuId"
       | "templateId"
+      | "audioPlaylistId"
       | "locationIds"
       | "enabled"
     >
-  >,
+  > & { clearAudioPlaylist?: boolean },
 ): Theme {
   const existing = themesState.find((t) => t.id === themeId);
   if (!existing) throw new Error("Theme not found");
+  const { clearAudioPlaylist, ...rest } = patch;
   const next: Theme = {
     ...existing,
-    ...patch,
-    locationIds: patch.locationIds
-      ? [...patch.locationIds]
+    ...rest,
+    locationIds: rest.locationIds
+      ? [...rest.locationIds]
       : [...existing.locationIds],
+    audioPlaylistId: clearAudioPlaylist
+      ? null
+      : (rest.audioPlaylistId !== undefined
+          ? rest.audioPlaylistId
+          : existing.audioPlaylistId),
   };
   themesState = themesState.map((t) => (t.id === themeId ? next : t));
   emit();

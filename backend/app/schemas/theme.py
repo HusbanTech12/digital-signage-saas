@@ -37,6 +37,7 @@ class ThemeOut(CamelModel):
     end_date: date | None
     menu_id: str
     template_id: str
+    audio_playlist_id: str | None = None
     location_ids: list[str]
     enabled: bool
     created_at: datetime
@@ -64,6 +65,7 @@ class ThemeCreate(CamelModel):
     end_date: date | None = None
     menu_id: str
     template_id: str
+    audio_playlist_id: str | None = None
     location_ids: list[str]
     enabled: bool = True
 
@@ -82,6 +84,8 @@ class ThemeUpdate(CamelModel):
     end_date: date | None = None
     menu_id: str | None = None
     template_id: str | None = None
+    audio_playlist_id: str | None = None
+    clear_audio_playlist: bool = False
     location_ids: list[str] | None = None
     enabled: bool | None = None
 

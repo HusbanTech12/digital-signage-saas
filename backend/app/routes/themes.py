@@ -10,6 +10,7 @@ from app.schemas.theme import ThemeCreate, ThemeOut, ThemeUpdate
 from app.services.theme_scheduler import run_scheduler_tick
 from app.utils.ids import new_id
 from db.models import Location, Menu, Template, Theme, User
+from db.models.audio_playlist import AudioPlaylist
 from db.session import get_db
 
 router = APIRouter(prefix="/api/v1/themes", tags=["themes"])
@@ -40,6 +41,7 @@ async def _validate_theme_refs(
     end_time,
     start_date,
     end_date,
+    audio_playlist_id: str | None = None,
 ) -> None:
     menu = await db.get(Menu, menu_id)
     if menu is None or menu.organization_id != user.organization_id:
@@ -50,6 +52,11 @@ async def _validate_theme_refs(
         raise HTTPException(status_code=404, detail="Template not found")
     if not template.is_global and template.organization_id != user.organization_id:
         raise HTTPException(status_code=404, detail="Template not found")
+
+    if audio_playlist_id:
+        playlist = await db.get(AudioPlaylist, audio_playlist_id)
+        if playlist is None or playlist.organization_id != user.organization_id:
+            raise HTTPException(status_code=404, detail="Audio playlist not found")
 
     if not location_ids:
         raise HTTPException(status_code=400, detail="Select at least one location")
@@ -116,6 +123,7 @@ async def create_theme(
         end_time=body.end_time,
         start_date=body.start_date,
         end_date=body.end_date,
+        audio_playlist_id=body.audio_playlist_id,
     )
     theme = Theme(
         id=new_id("theme"),
@@ -128,6 +136,7 @@ async def create_theme(
         end_date=body.end_date if body.kind == "date_range" else None,
         menu_id=body.menu_id,
         template_id=body.template_id,
+        audio_playlist_id=body.audio_playlist_id,
         location_ids=list(body.location_ids),
         enabled=body.enabled,
         created_at=_utcnow(),
@@ -176,6 +185,12 @@ async def update_theme(
     kind = body.kind or theme.kind
     menu_id = body.menu_id or theme.menu_id
     template_id = body.template_id or theme.template_id
+    if body.clear_audio_playlist:
+        audio_playlist_id: str | None = None
+    elif "audio_playlist_id" in body.model_fields_set:
+        audio_playlist_id = body.audio_playlist_id
+    else:
+        audio_playlist_id = theme.audio_playlist_id
     location_ids = (
         body.location_ids if body.location_ids is not None else list(theme.location_ids)
     )
@@ -195,6 +210,7 @@ async def update_theme(
         end_time=end_time,
         start_date=start_date,
         end_date=end_date,
+        audio_playlist_id=audio_playlist_id,
     )
 
     if body.name is not None:
@@ -202,6 +218,7 @@ async def update_theme(
     theme.kind = kind
     theme.menu_id = menu_id
     theme.template_id = template_id
+    theme.audio_playlist_id = audio_playlist_id
     theme.location_ids = location_ids
     if body.enabled is not None:
         theme.enabled = body.enabled
