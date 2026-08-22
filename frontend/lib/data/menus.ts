@@ -57,6 +57,22 @@ export async function refreshMenusFromApi(token: Token) {
   return { menus, menuItems, templates };
 }
 
+export async function listMenus(token?: Token | null): Promise<Menu[]> {
+  if (useLiveApi() && token) {
+    const t = token;
+    return withProvisioned(t, () => listMenusApi(t));
+  }
+  return getMockStoreSnapshot().menus;
+}
+
+export async function listTemplates(token?: Token | null): Promise<Template[]> {
+  if (useLiveApi() && token) {
+    const t = token;
+    return withProvisioned(t, () => listTemplatesApi(t));
+  }
+  return getMockStoreSnapshot().templates;
+}
+
 export async function createMenu(
   input: { organizationId: string; name: string },
   token?: Token | null,

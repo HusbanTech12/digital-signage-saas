@@ -22,6 +22,7 @@ from app.schemas.media import (
     MediaFolderOut,
     MediaFolderUpdate,
     MediaListOut,
+    MediaProbeIn,
 )
 from app.services import media as media_service
 from app.services.storage import get_media_storage
@@ -120,6 +121,55 @@ async def update_asset(
         clear_folder=body.clear_folder,
         tags=body.tags,
         notes=body.notes,
+        width=body.width,
+        height=body.height,
+        duration_seconds=body.duration_seconds,
+        trim_start_seconds=body.trim_start_seconds,
+        trim_end_seconds=body.trim_end_seconds,
+        clear_trim=body.clear_trim,
+        crop_x=body.crop_x,
+        crop_y=body.crop_y,
+        crop_w=body.crop_w,
+        crop_h=body.crop_h,
+        clear_crop=body.clear_crop,
+        muted=body.muted,
+        loop=body.loop,
+    )
+    return MediaAssetOut.model_validate(asset)
+
+
+@router.post("/assets/{asset_id}/probe", response_model=MediaAssetOut)
+async def probe_asset(
+    asset_id: str,
+    body: MediaProbeIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MediaAssetOut:
+    asset = await media_service.probe_asset(
+        db,
+        user=user,
+        asset_id=asset_id,
+        width=body.width,
+        height=body.height,
+        duration_seconds=body.duration_seconds,
+    )
+    return MediaAssetOut.model_validate(asset)
+
+
+@router.post("/assets/{asset_id}/poster", response_model=MediaAssetOut)
+async def set_asset_poster(
+    asset_id: str,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MediaAssetOut:
+    data = await file.read()
+    asset = await media_service.set_asset_poster(
+        db,
+        user=user,
+        asset_id=asset_id,
+        data=data,
+        content_type=file.content_type,
     )
     return MediaAssetOut.model_validate(asset)
 

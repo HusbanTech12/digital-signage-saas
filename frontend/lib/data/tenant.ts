@@ -128,6 +128,16 @@ export async function refreshScreensFromApi(token: Token) {
   return screens;
 }
 
+export async function listScreensFromApi(
+  token: string | null | undefined,
+): Promise<Screen[]> {
+  if (useLiveApi() && token) {
+    const t = token;
+    return withProvisioned(t, () => listScreens(t));
+  }
+  return getMockStoreSnapshot().screens;
+}
+
 export async function updateOrganization(
   organizationId: string,
   patch: Partial<Pick<Organization, "name" | "slug">>,

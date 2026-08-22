@@ -43,11 +43,14 @@ def verify_clerk_token(token: str) -> ClerkClaims:
     settings = get_settings()
     try:
         signing_key = _get_jwk_client().get_signing_key_from_jwt(token)
+        # Clerk and local clocks often differ by a few seconds; without leeway,
+        # PyJWT raises ImmatureSignatureError ("token is not yet valid (iat)").
         payload = jwt.decode(
             token,
             signing_key.key,
             algorithms=["RS256"],
             options={"verify_aud": False},
+            leeway=120,
         )
     except jwt.PyJWTError as exc:
         raise HTTPException(

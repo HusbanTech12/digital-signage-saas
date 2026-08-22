@@ -182,13 +182,29 @@ export async function downloadMedia(
 
 export async function createMediaFolder(
   token: Token,
-  input: { name: string; parentId?: string | null },
+  input: {
+    name: string;
+    parentId?: string | null;
+    organizationId?: string;
+    createdByUserId?: string;
+  },
 ) {
-  if (!useLiveApi()) return createMediaFolderMock(input);
+  if (!useLiveApi()) {
+    if (!input.organizationId || !input.createdByUserId) {
+      throw new Error("organizationId and createdByUserId required in mock mode");
+    }
+    return createMediaFolderMock({
+      organizationId: input.organizationId,
+      name: input.name,
+      parentId: input.parentId,
+      createdByUserId: input.createdByUserId,
+    });
+  }
   const t = requireToken(token);
-  return withProvisioned(t, () => createMediaFolderApi(t, input));
+  return withProvisioned(t, () =>
+    createMediaFolderApi(t, { name: input.name, parentId: input.parentId }),
+  );
 }
-
 export async function deleteMediaFolder(
   token: Token,
   folderId: string,

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApiAuthToken } from "@/lib/api/auth-token";
 import { canManageAudio, canPublishAudio } from "@/lib/access";
-import { listScreens } from "@/lib/api/tenant";
+import { listScreensFromApi } from "@/lib/data/tenant";
 import {
   getAudioPlaylist,
   publishAudioPlaylist,
@@ -50,6 +50,7 @@ export default function AudioPlaylistDetailPage() {
     setError(null);
     try {
       const token = await getApiToken();
+      if (!token) throw new Error("Missing API auth token");
       const pl = await getAudioPlaylist(token, playlistId);
       setPlaylist(pl);
       setName(pl.name);
@@ -62,7 +63,7 @@ export default function AudioPlaylistDetailPage() {
           label: t.label || t.mediaName || "Track",
         })),
       );
-      const scr = await listScreens(token);
+      const scr = await listScreensFromApi(token);
       setScreens(
         scr.filter((s) => s.locationId && s.status !== "pairing"),
       );

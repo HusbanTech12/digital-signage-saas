@@ -119,10 +119,10 @@ function CanvasObjectView({
     animations.itemAnimation,
     animations.enabled,
   );
-  const animStyle: CSSProperties = {
+  const animStyle = {
     ...animationStyleVars(animations),
-    ["--dss-item-delay" as string]: `${delay}ms`,
-  };
+    ["--dss-item-delay"]: `${delay}ms`,
+  } as CSSProperties;
 
   if (type === "rect") {
     return (

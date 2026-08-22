@@ -12,8 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useApiAuthToken } from "@/lib/api/auth-token";
 import { canManagePlaylists, canPublishPlaylists } from "@/lib/access";
-import { listMenusApi, listTemplatesApi } from "@/lib/api/menus";
-import { listScreens } from "@/lib/api/tenant";
+import { listMenus, listTemplates } from "@/lib/data/menus";
+import { listScreensFromApi } from "@/lib/data/tenant";
 import {
   getPlaylist,
   publishPlaylist,
@@ -86,11 +86,12 @@ export default function PlaylistDetailPage() {
     setError(null);
     try {
       const token = await getApiToken();
+      if (!token) throw new Error("Missing API auth token");
       const [pl, menuList, tplList, screenList] = await Promise.all([
         getPlaylist(token, playlistId),
-        listMenusApi(token).catch(() => [] as Menu[]),
-        listTemplatesApi(token).catch(() => [] as Template[]),
-        listScreens(token).catch(() => [] as Screen[]),
+        listMenus(token).catch(() => [] as Menu[]),
+        listTemplates(token).catch(() => [] as Template[]),
+        listScreensFromApi(token).catch(() => [] as Screen[]),
       ]);
       setPlaylist(pl);
       setName(pl.name);
