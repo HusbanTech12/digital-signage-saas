@@ -12,7 +12,7 @@ import {
   filterLocationsForUser,
   filterScreensForUser,
 } from "@/lib/access";
-import { lcdPresetLabel } from "@/lib/display/lcd-presets";
+import { orientationLabel } from "@/lib/display/orientation";
 
 function useAppOrigin(): string {
   const [origin, setOrigin] = useState("");
@@ -205,8 +205,7 @@ export default function StreamingStickSetupPage() {
                       </h3>
                       <p className="text-xs text-muted-foreground">
                         {locationName(screen.locationId)} ·{" "}
-                        {lcdPresetLabel(screen.resolution, screen.orientation)}{" "}
-                        · {screen.resolution}
+                        {orientationLabel(screen.orientation)}
                       </p>
                     </div>
                     <StatusBadge status={screen.status} />

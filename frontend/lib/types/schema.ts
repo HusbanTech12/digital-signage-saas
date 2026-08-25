@@ -113,6 +113,14 @@ export interface Template {
   version?: number;
   publishedAt?: string | null;
   publishedByUserId?: string | null;
+  /** Background audio playlist from the Audio library (package default). */
+  audioPlaylistId?: string | null;
+  audioVolume?: number;
+  audioLoop?: boolean;
+  audioMuted?: boolean;
+  /** Visual playlist this template participates in. */
+  playlistId?: string | null;
+  playlistItemDurationSeconds?: number | null;
   createdAt: string;
   updatedAt: string;
 }

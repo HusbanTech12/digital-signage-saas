@@ -16,6 +16,10 @@ import {
 } from "@/lib/mock-data";
 import { createBlankCanvasJson } from "@/lib/designer/canvas-io";
 import { DEFAULT_MENU_DISPLAY_CONFIG } from "@/lib/display/menu-board-theme";
+import {
+  boardSizeFor,
+  nominalResolution,
+} from "@/lib/display/orientation";
 import type {
   Location,
   Menu,
@@ -515,6 +519,8 @@ export function createTemplate(input: {
   orientation?: ScreenOrientation;
 }): Template {
   const ts = nowIso();
+  const orientation = input.orientation ?? "landscape";
+  const board = boardSizeFor(orientation);
   const template: Template = {
     id: id("tpl"),
     organizationId: input.organizationId,
@@ -522,10 +528,10 @@ export function createTemplate(input: {
     description: input.description?.trim() ?? "",
     thumbnailUrl: null,
     isGlobal: false,
-    canvasJson: createBlankCanvasJson(),
+    canvasJson: createBlankCanvasJson(board.width, board.height),
     displayConfig: { ...DEFAULT_MENU_DISPLAY_CONFIG },
-    resolution: input.resolution?.trim() || "1920x1080",
-    orientation: input.orientation ?? "landscape",
+    resolution: input.resolution?.trim() || nominalResolution(orientation),
+    orientation,
     createdAt: ts,
     updatedAt: ts,
   };

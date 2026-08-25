@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,6 +44,22 @@ class Template(Base):
     )
     published_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True
+    )
+    audio_playlist_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("audio_playlists.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    audio_volume: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    audio_loop: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    audio_muted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    playlist_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("playlists.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    playlist_item_duration_seconds: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

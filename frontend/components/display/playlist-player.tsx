@@ -10,9 +10,11 @@ import type {
   WallInfo,
 } from "@/lib/display/types";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
+import { boardMatchesOrientation } from "@/lib/display/orientation";
 import { useDisplayMediaSrc } from "@/lib/display/use-display-media-src";
 import { resolveMediaUrl } from "@/lib/api/media";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
+import type { ScreenOrientation } from "@/lib/types/schema";
 
 function VideoSlide({
   slide,
@@ -73,13 +75,13 @@ function VideoSlide({
   const ch = Math.max(0.05, slide.cropH ?? 1);
 
   return (
-    <div className="flex min-h-screen items-center justify-center overflow-hidden bg-black">
+    <div className="flex h-dvh w-screen items-center justify-center overflow-hidden bg-black">
       <video
         ref={ref}
         key={`${slide.id}-${mediaSrc ?? slide.mediaUrl}`}
         src={mediaSrc ?? slide.mediaUrl!}
         poster={poster}
-        className="max-h-screen max-w-full"
+        className="max-h-full max-w-full"
         style={
           crop
             ? {
@@ -98,13 +100,50 @@ function VideoSlide({
   );
 }
 
+/**
+ * Canvas slides fill the whole screen when the board's shape agrees with the
+ * screen orientation; a mismatched legacy board is letterboxed instead.
+ */
+function CanvasSlide({
+  canvas,
+  slide,
+  orientation,
+  contentKey,
+}: {
+  canvas: DesignerCanvasJson;
+  slide: PlaylistSlide;
+  orientation: ScreenOrientation;
+  contentKey: string;
+}) {
+  const fills = boardMatchesOrientation(canvas, orientation);
+  return (
+    <div
+      className={
+        fills
+          ? "h-dvh w-screen overflow-hidden bg-zinc-950"
+          : "flex h-dvh w-screen items-center justify-center overflow-hidden bg-zinc-950"
+      }
+    >
+      <CanvasBoard
+        canvasJson={canvas}
+        className={fills ? "h-full w-full max-w-none" : "h-auto w-full max-w-[100vw]"}
+        fillViewport={fills}
+        animations={mergeDisplayConfig(slide.displayConfig).animations}
+        contentKey={contentKey}
+      />
+    </div>
+  );
+}
+
 function SlideView({
   slide,
+  orientation,
   statusLabel,
   contentKey,
   onVideoEnded,
 }: {
   slide: PlaylistSlide;
+  orientation: ScreenOrientation;
   statusLabel?: string;
   contentKey: string;
   onVideoEnded?: () => void;
@@ -113,12 +152,12 @@ function SlideView({
 
   if (slide.contentType === "image" && (mediaSrc || slide.mediaUrl)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
+      <div className="flex h-dvh w-screen items-center justify-center overflow-hidden bg-black">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={mediaSrc ?? slide.mediaUrl!}
           alt={slide.mediaName ?? slide.label ?? "Slide"}
-          className="max-h-screen max-w-full object-contain"
+          className="max-h-full max-w-full object-contain"
         />
       </div>
     );
@@ -141,6 +180,7 @@ function SlideView({
         <PremiumMenuBoard
           items={slide.items}
           config={mergeDisplayConfig(slide.displayConfig)}
+          orientation={orientation}
           statusLabel={statusLabel}
           contentKey={contentKey}
         />
@@ -149,20 +189,19 @@ function SlideView({
     const canvas = slide.canvasJson as DesignerCanvasJson | null;
     if (canvas && Array.isArray(canvas.objects) && canvas.objects.length > 0) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-          <CanvasBoard
-            canvasJson={canvas}
-            className="h-auto w-full max-w-[100vw]"
-            animations={mergeDisplayConfig(slide.displayConfig).animations}
-            contentKey={contentKey}
-          />
-        </div>
+        <CanvasSlide
+          canvas={canvas}
+          slide={slide}
+          orientation={orientation}
+          contentKey={contentKey}
+        />
       );
     }
     return (
       <MenuFallbackBoard
         title={slide.menuName ?? slide.label ?? "Menu"}
         items={slide.items}
+        orientation={orientation}
         animations={mergeDisplayConfig(slide.displayConfig).animations}
         contentKey={contentKey}
       />
@@ -177,6 +216,7 @@ function SlideView({
         <PremiumMenuBoard
           items={slide.items}
           config={mergeDisplayConfig(slide.displayConfig)}
+          orientation={orientation}
           statusLabel={statusLabel}
           contentKey={contentKey}
         />
@@ -184,20 +224,18 @@ function SlideView({
     }
     if (canvas && Array.isArray(canvas.objects) && canvas.objects.length > 0) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-          <CanvasBoard
-            canvasJson={canvas}
-            className="h-auto w-full max-w-[100vw]"
-            animations={mergeDisplayConfig(slide.displayConfig).animations}
-            contentKey={contentKey}
-          />
-        </div>
+        <CanvasSlide
+          canvas={canvas}
+          slide={slide}
+          orientation={orientation}
+          contentKey={contentKey}
+        />
       );
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400">
+    <div className="flex h-dvh w-screen items-center justify-center overflow-hidden bg-zinc-950 text-zinc-400">
       Unable to render slide
     </div>
   );
@@ -244,10 +282,13 @@ function indexFromEpoch(
  */
 export function PlaylistPlayer({
   playlist,
+  orientation = "landscape",
   statusLabel,
   wall,
 }: {
   playlist: PlaylistPlayback;
+  /** Landscape puts menu sections side by side; portrait stacks them. */
+  orientation?: ScreenOrientation;
   statusLabel?: string;
   wall?: WallInfo | null;
 }) {
@@ -301,16 +342,17 @@ export function PlaylistPlayer({
 
   if (!slide) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400">
+      <div className="flex h-dvh w-screen items-center justify-center overflow-hidden bg-zinc-950 text-zinc-400">
         Playlist has no playable slides
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative h-dvh w-screen overflow-hidden">
       <SlideView
         slide={slide}
+        orientation={orientation}
         statusLabel={statusLabel}
         contentKey={`${playlist.id}-${playlist.version}-${slide.id}-${index}-${syncEpochMs ?? "local"}`}
         onVideoEnded={syncEpochMs != null ? undefined : advance}

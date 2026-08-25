@@ -12,6 +12,7 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
+gcm-diagnose.log
 dist/
 build/
 *.egg-info/

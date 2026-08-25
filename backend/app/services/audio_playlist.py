@@ -212,16 +212,15 @@ async def _build_snapshot(
     }
 
 
-async def publish_audio_playlist(
+async def stamp_audio_playlist_published(
     db: AsyncSession,
     user: User,
-    playlist_id: str,
-    screen_ids: list[str],
+    playlist: AudioPlaylist,
     *,
     bump_version: bool = True,
-) -> tuple[AudioPlaylist, list[Screen]]:
+) -> None:
+    """Bump version and snapshot. Does not assign screens or commit."""
     require_permission(user, AUDIO_PUBLISH)
-    playlist = await get_org_audio_playlist_or_404(db, user, playlist_id)
     if not playlist.tracks:
         raise HTTPException(status_code=400, detail="Add at least one audio track")
 
@@ -232,6 +231,20 @@ async def publish_audio_playlist(
     playlist.published_by_user_id = user.id
     playlist.published_snapshot = await _build_snapshot(db, playlist)
     playlist.updated_at = _utcnow()
+
+
+async def publish_audio_playlist(
+    db: AsyncSession,
+    user: User,
+    playlist_id: str,
+    screen_ids: list[str],
+    *,
+    bump_version: bool = True,
+) -> tuple[AudioPlaylist, list[Screen]]:
+    playlist = await get_org_audio_playlist_or_404(db, user, playlist_id)
+    await stamp_audio_playlist_published(
+        db, user, playlist, bump_version=bump_version
+    )
 
     screens: list[Screen] = []
     for sid in screen_ids:

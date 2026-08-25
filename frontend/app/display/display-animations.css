@@ -2,6 +2,10 @@
  * Kiosk-safe display animations.
  * Only opacity + transform (and light clip-path for wipe).
  * Honors prefers-reduced-motion.
+ *
+ * Note: also pulled into globals.css so dashboard previews animate the same
+ * way — keep this file free of document-level rules. Kiosk-only styles belong
+ * in kiosk-shell.css.
  */
 
 .dss-board {

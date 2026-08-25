@@ -12,11 +12,17 @@ from app.schemas.template import (
     TemplateCreate,
     TemplateDuplicateIn,
     TemplateOut,
+    TemplatePublishIn,
+    TemplatePublishOut,
     TemplateUpdate,
 )
-from app.schemas.content_version import PublishTemplateIn
 from app.services import content_versions as cv_service
+from app.services import template_publish as package_service
+from app.services.display_content import build_display_payload
+from app.schemas.display import RealtimeEvent
+from app.services.realtime import get_realtime_hub
 from app.utils.ids import new_id
+from app.utils.orientation import board_size, nominal_resolution
 from db.models import Template, User
 from db.session import get_db
 
@@ -40,9 +46,16 @@ BLANK_CANVAS: dict[str, Any] = {
             "editable": True,
         }
     ],
-    "width": 1920,
-    "height": 1080,
 }
+
+
+def _blank_canvas(orientation: str) -> dict[str, Any]:
+    """Starter board sized for the template's orientation."""
+    width, height = board_size(orientation)
+    canvas = deepcopy(BLANK_CANVAS)
+    canvas["width"] = width
+    canvas["height"] = height
+    return canvas
 
 
 def _utcnow() -> datetime:
@@ -90,8 +103,8 @@ async def create_template(
     require_roles(user, "super_admin", "admin")
     assert_same_org(user, body.organization_id)
     now = _utcnow()
-    resolution = (body.resolution or "1920x1080").strip() or "1920x1080"
     orientation = body.orientation or "landscape"
+    resolution = (body.resolution or "").strip() or nominal_resolution(orientation)
     template = Template(
         id=new_id("tpl"),
         organization_id=body.organization_id,
@@ -99,7 +112,7 @@ async def create_template(
         description=(body.description or "").strip(),
         thumbnail_url=None,
         is_global=False,
-        canvas_json=deepcopy(BLANK_CANVAS),
+        canvas_json=_blank_canvas(orientation),
         display_config={},
         resolution=resolution,
         orientation=orientation,
@@ -137,6 +150,12 @@ async def duplicate_template(
         display_config=deepcopy(source.display_config or {}),
         resolution=source.resolution or "1920x1080",
         orientation=source.orientation or "landscape",
+        audio_playlist_id=source.audio_playlist_id,
+        audio_volume=source.audio_volume,
+        audio_loop=source.audio_loop,
+        audio_muted=source.audio_muted,
+        playlist_id=source.playlist_id,
+        playlist_item_duration_seconds=source.playlist_item_duration_seconds,
         created_at=now,
         updated_at=now,
     )
@@ -193,13 +212,13 @@ async def update_template(
     return template
 
 
-@router.post("/{template_id}/publish", response_model=TemplateOut)
+@router.post("/{template_id}/publish", response_model=TemplatePublishOut)
 async def publish_template(
     template_id: str,
-    body: PublishTemplateIn,
+    body: TemplatePublishIn,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> Template:
+) -> TemplatePublishOut:
     require_roles(user, "super_admin", "admin", "location_manager", "content_manager")
     template = await _get_visible_template_or_404(db, user, template_id)
     if template.is_global:
@@ -207,12 +226,81 @@ async def publish_template(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Global templates cannot be published as org versions.",
         )
-    await cv_service.publish_template(
-        db, user, template, change_summary=body.change_summary
+
+    has_targets = bool(body.screen_ids or body.screen_group_id)
+    has_package = any(
+        [
+            body.canvas_json is not None,
+            body.display_config is not None,
+            body.audio_playlist_id,
+            body.playlist_id,
+            body.resolution,
+            body.orientation,
+            body.menu_id,
+        ]
     )
-    await db.commit()
+    if not has_targets and has_package:
+        raise HTTPException(
+            status_code=400,
+            detail="Select at least one screen or a video wall to publish",
+        )
+
+    if not has_targets:
+        await cv_service.publish_template(
+            db, user, template, change_summary=body.change_summary
+        )
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+        await db.refresh(template)
+        return TemplatePublishOut(
+            template=TemplateOut.model_validate(template),
+            screen_ids=[],
+            playlist_id=template.playlist_id,
+            audio_playlist_id=template.audio_playlist_id,
+            screen_group_id=None,
+            version=int(template.version or 1),
+        )
+
+    try:
+        template, screens, group_id = await package_service.publish_template_package(
+            db, user, template, body
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
     await db.refresh(template)
-    return template
+    hub = get_realtime_hub()
+    now = _utcnow()
+    for screen in screens:
+        await db.refresh(screen)
+        payload = await build_display_payload(db, screen)
+        if payload is None:
+            continue
+        await hub.publish_event(
+            RealtimeEvent(
+                type="menu.published",
+                screen_id=screen.id,
+                payload=payload.model_dump(by_alias=True, mode="json"),
+                ts=now,
+            )
+        )
+
+    return TemplatePublishOut(
+        template=TemplateOut.model_validate(template),
+        screen_ids=[s.id for s in screens],
+        playlist_id=template.playlist_id,
+        audio_playlist_id=template.audio_playlist_id,
+        screen_group_id=group_id,
+        version=int(template.version or 1),
+        orientation_mismatch_screen_ids=package_service.orientation_mismatch_screen_ids(
+            template, screens
+        ),
+    )
 
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)

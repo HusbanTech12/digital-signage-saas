@@ -23,6 +23,12 @@ class TemplateOut(CamelModel):
     version: int = 1
     published_at: datetime | None = None
     published_by_user_id: str | None = None
+    audio_playlist_id: str | None = None
+    audio_volume: float = 0.5
+    audio_loop: bool = True
+    audio_muted: bool = False
+    playlist_id: str | None = None
+    playlist_item_duration_seconds: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -66,3 +72,34 @@ class TemplateUpdate(CamelModel):
 class TemplateDuplicateIn(CamelModel):
     template_id: str
     organization_id: str
+
+
+class TemplatePublishIn(CamelModel):
+    """Atomic package: layout + audio + playlist rotation + screen/wall targets."""
+
+    change_summary: str | None = None
+    canvas_json: dict[str, Any] | None = None
+    display_config: dict[str, Any] | None = None
+    resolution: str | None = None
+    orientation: ScreenOrientation | None = None
+    audio_playlist_id: str | None = None
+    audio_volume: float | None = Field(default=None, ge=0, le=1)
+    audio_loop: bool | None = None
+    audio_muted: bool | None = None
+    playlist_id: str | None = None
+    playlist_item_duration_seconds: int | None = Field(default=None, ge=1, le=3600)
+    playlist_item_sort_order: int | None = Field(default=None, ge=0)
+    screen_ids: list[str] = Field(default_factory=list)
+    screen_group_id: str | None = None
+    menu_id: str | None = None
+
+
+class TemplatePublishOut(CamelModel):
+    template: TemplateOut
+    screen_ids: list[str]
+    playlist_id: str | None = None
+    audio_playlist_id: str | None = None
+    screen_group_id: str | None = None
+    version: int
+    """Targets whose orientation differs from the template — published, but flagged."""
+    orientation_mismatch_screen_ids: list[str] = []

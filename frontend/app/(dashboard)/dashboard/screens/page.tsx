@@ -20,12 +20,11 @@ import {
 } from "@/lib/access";
 import { deleteScreen, requestScreenRefresh, updateScreen } from "@/lib/data/tenant";
 import {
-  CUSTOM_LCD_PRESET_ID,
-  LCD_PRESETS,
-  lcdPresetLabel,
-  lcdPresetSelectValue,
-} from "@/lib/display/lcd-presets";
-import type { Screen, ScreenOrientation } from "@/lib/types/schema";
+  nominalResolution,
+  orientationLabel,
+} from "@/lib/display/orientation";
+import { OrientationToggle } from "@/components/dashboard/orientation-toggle";
+import type { Screen } from "@/lib/types/schema";
 
 export default function ScreensPage() {
   const { session, role } = useMockSession();
@@ -241,10 +240,10 @@ export default function ScreensPage() {
                   <td className="hidden px-4 py-3 text-muted-foreground xl:table-cell">
                     <div className="max-w-[12rem] truncate">
                       {screen.currentContentSummary ??
-                        lcdPresetLabel(screen.resolution, screen.orientation)}
+                        `${orientationLabel(screen.orientation)} screen`}
                     </div>
                     <div className="text-xs">
-                      {screen.resolution} · {screen.orientation}
+                      {orientationLabel(screen.orientation)}
                       {screen.contentVersion != null
                         ? ` · v${screen.contentVersion}`
                         : ""}
@@ -345,10 +344,6 @@ function EditScreenDialog({
   const [name, setName] = useState(screen.name);
   const [locationId, setLocationId] = useState(screen.locationId ?? "");
   const [orientation, setOrientation] = useState(screen.orientation);
-  const [resolution, setResolution] = useState(screen.resolution);
-  const [presetId, setPresetId] = useState(
-    lcdPresetSelectValue(screen.resolution, screen.orientation),
-  );
   const [audioPlaylistId, setAudioPlaylistId] = useState(
     screen.activeAudioPlaylistId ?? "",
   );
@@ -383,28 +378,11 @@ function EditScreenDialog({
     };
   }, [getApiToken]);
 
-  const activePreset =
-    presetId === CUSTOM_LCD_PRESET_ID
-      ? null
-      : (LCD_PRESETS.find((p) => p.id === presetId) ?? null);
-
-  function applyPreset(nextPresetId: string) {
-    setPresetId(nextPresetId);
-    if (nextPresetId === CUSTOM_LCD_PRESET_ID) return;
-    const preset = LCD_PRESETS.find((p) => p.id === nextPresetId);
-    if (!preset) return;
-    setResolution(preset.resolution);
-    setOrientation(preset.orientation);
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaving(true);
     try {
-      if (!/^\d{3,5}x\d{3,5}$/i.test(resolution.trim())) {
-        throw new Error("Resolution must look like 1920x1080.");
-      }
       const token = await getApiToken();
       const clearAudio = !audioPlaylistId;
       await updateScreen(
@@ -413,7 +391,7 @@ function EditScreenDialog({
           name,
           locationId: locationId || null,
           orientation,
-          resolution: resolution.trim(),
+          resolution: nominalResolution(orientation),
           audioVolume,
           audioMuted,
           audioLoop,
@@ -469,54 +447,7 @@ function EditScreenDialog({
             ))}
           </select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="scr-lcd">LCD type</Label>
-          <select
-            id="scr-lcd"
-            value={presetId}
-            onChange={(e) => applyPreset(e.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {LCD_PRESETS.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.label} ({preset.resolution})
-              </option>
-            ))}
-            <option value={CUSTOM_LCD_PRESET_ID}>Custom…</option>
-          </select>
-          <p className="text-xs text-muted-foreground">
-            {activePreset?.hint ??
-              "Enter the exact pixel size of your physical LCD."}
-          </p>
-        </div>
-        {presetId === CUSTOM_LCD_PRESET_ID ? (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="scr-orient">Orientation</Label>
-              <select
-                id="scr-orient"
-                value={orientation}
-                onChange={(e) =>
-                  setOrientation(e.target.value as ScreenOrientation)
-                }
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="landscape">Landscape</option>
-                <option value="portrait">Portrait</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="scr-res">Resolution</Label>
-              <Input
-                id="scr-res"
-                value={resolution}
-                onChange={(e) => setResolution(e.target.value)}
-                placeholder="1920x1080"
-                required
-              />
-            </div>
-          </div>
-        ) : null}
+        <OrientationToggle value={orientation} onChange={setOrientation} />
 
         <div className="space-y-3 border-t border-border pt-3">
           <h3 className="text-sm font-semibold">Background music</h3>

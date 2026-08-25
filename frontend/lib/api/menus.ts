@@ -153,3 +153,43 @@ export function deleteTemplateApi(token: Token, templateId: string) {
     token,
   });
 }
+
+export type TemplatePublishInput = {
+  changeSummary?: string;
+  canvasJson?: Record<string, unknown>;
+  displayConfig?: Template["displayConfig"];
+  resolution?: string;
+  orientation?: Template["orientation"];
+  audioPlaylistId?: string | null;
+  audioVolume?: number;
+  audioLoop?: boolean;
+  audioMuted?: boolean;
+  playlistId?: string | null;
+  playlistItemDurationSeconds?: number | null;
+  playlistItemSortOrder?: number | null;
+  screenIds: string[];
+  screenGroupId?: string | null;
+  menuId?: string | null;
+};
+
+export type TemplatePublishResult = {
+  template: Template;
+  screenIds: string[];
+  playlistId: string | null;
+  audioPlaylistId: string | null;
+  screenGroupId: string | null;
+  version: number;
+  /** Targets whose orientation differs from the template — published, but flagged. */
+  orientationMismatchScreenIds?: string[];
+};
+
+export function publishTemplateApi(
+  token: Token,
+  templateId: string,
+  body: TemplatePublishInput,
+) {
+  return apiFetch<TemplatePublishResult>(
+    `/api/v1/templates/${templateId}/publish`,
+    { method: "POST", token, body },
+  );
+}

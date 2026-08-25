@@ -1,13 +1,25 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { MenuDesigner } from "@/components/designer/menu-designer";
+import {
+  VisualEditor,
+  type VisualEditorHandle,
+} from "@/components/designer/visual-editor";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PublishMenuDialog } from "@/components/dashboard/publish-menu-dialog";
-import { TemplateLayoutSettings } from "@/components/dashboard/template-layout-settings";
-import { TemplateLcdTypeFields } from "@/components/dashboard/template-lcd-type-fields";
+import {
+  TemplateLayoutSettings,
+  type TemplateLayoutSettingsHandle,
+} from "@/components/dashboard/template-layout-settings";
+import { OrientationToggle } from "@/components/dashboard/orientation-toggle";
+import {
+  TemplateAudioTab,
+  TemplateHubTabBar,
+  TemplatePlaylistTab,
+  TemplateTargetTab,
+  type TemplateHubTab,
+} from "@/components/dashboard/template-editor-hub";
 import { useMockSession } from "@/components/providers/mock-session-provider";
 import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
@@ -17,10 +29,19 @@ import {
   filterScreensForUser,
 } from "@/lib/access";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
-import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
+import {
+  nominalResolution,
+  orientationHint,
+} from "@/lib/display/orientation";
 import { useApiAuthToken } from "@/lib/api/auth-token";
-import { updateTemplate } from "@/lib/data/menus";
-import type { ScreenOrientation } from "@/lib/types/schema";
+import { publishTemplatePackage } from "@/lib/data/menus";
+import { listAudioPlaylists } from "@/lib/data/audio-playlists";
+import { listPlaylists } from "@/lib/data/playlists";
+import { listScreenGroups } from "@/lib/data/screen-groups";
+import { listScreensFromApi } from "@/lib/data/tenant";
+import type { AudioPlaylist } from "@/lib/api/audio-playlists";
+import type { ScreenGroup } from "@/lib/api/screen-groups";
+import type { Playlist, Screen, ScreenOrientation } from "@/lib/types/schema";
 
 export default function TemplateEditPage() {
   return (
@@ -41,15 +62,33 @@ function TemplateEditPageInner() {
   const searchParams = useSearchParams();
   const menuId = searchParams.get("menuId");
   const { session, role } = useMockSession();
-  const { templates, menus, menuItems, screens } = useMockStore();
+  const { templates, menus, menuItems, screens: storeScreens } = useMockStore();
   const { getApiToken } = useApiAuthToken();
-  const [saving, setSaving] = useState(false);
+
+  const editorRef = useRef<VisualEditorHandle>(null);
+  const layoutRef = useRef<TemplateLayoutSettingsHandle>(null);
+
+  const [tab, setTab] = useState<TemplateHubTab>("layout");
+  const [publishing, setPublishing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const [publishOpen, setPublishOpen] = useState(false);
-  const [lcdResolution, setLcdResolution] = useState("1920x1080");
-  const [lcdOrientation, setLcdOrientation] =
+  const [error, setError] = useState<string | null>(null);
+  const [orientation, setOrientation] =
     useState<ScreenOrientation>("landscape");
-  const [lcdSaving, setLcdSaving] = useState(false);
+
+  const [audioPlaylists, setAudioPlaylists] = useState<AudioPlaylist[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [groups, setGroups] = useState<ScreenGroup[]>([]);
+  const [liveScreens, setLiveScreens] = useState<Screen[]>([]);
+
+  const [audioPlaylistId, setAudioPlaylistId] = useState("");
+  const [audioVolume, setAudioVolume] = useState(0.5);
+  const [audioLoop, setAudioLoop] = useState(true);
+  const [audioMuted, setAudioMuted] = useState(false);
+  const [playlistId, setPlaylistId] = useState("");
+  const [slideDuration, setSlideDuration] = useState(12);
+  const [slideSortOrder, setSlideSortOrder] = useState<number | "">("");
+  const [selectedScreens, setSelectedScreens] = useState<string[]>([]);
+  const [screenGroupId, setScreenGroupId] = useState("");
 
   const template = templates.find((t) => t.id === params.templateId);
   const menu = menuId
@@ -61,9 +100,44 @@ function TemplateEditPageInner() {
 
   useEffect(() => {
     if (!template) return;
-    setLcdResolution(template.resolution || "1920x1080");
-    setLcdOrientation(template.orientation || "landscape");
-  }, [template?.id, template?.resolution, template?.orientation]);
+    setOrientation(template.orientation || "landscape");
+    setAudioPlaylistId(template.audioPlaylistId ?? "");
+    setAudioVolume(template.audioVolume ?? 0.5);
+    setAudioLoop(template.audioLoop ?? true);
+    setAudioMuted(template.audioMuted ?? false);
+    setPlaylistId(template.playlistId ?? "");
+    setSlideDuration(template.playlistItemDurationSeconds ?? 12);
+  }, [template?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getApiToken();
+        if (!token) return;
+        const [audio, pls, walls, scr] = await Promise.all([
+          listAudioPlaylists(token).catch(() => ({
+            audioPlaylists: [] as AudioPlaylist[],
+          })),
+          listPlaylists(token).catch(() => ({ playlists: [] as Playlist[] })),
+          listScreenGroups(token).catch(() => ({
+            screenGroups: [] as ScreenGroup[],
+          })),
+          listScreensFromApi(token).catch(() => [] as Screen[]),
+        ]);
+        if (cancelled) return;
+        setAudioPlaylists(audio.audioPlaylists);
+        setPlaylists(pls.playlists);
+        setGroups(walls.screenGroups);
+        setLiveScreens(scr);
+      } catch {
+        /* library lists are optional for the canvas */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getApiToken]);
 
   const items = useMemo(
     () =>
@@ -77,11 +151,20 @@ function TemplateEditPageInner() {
     [menu, menuItems, session.organization.id],
   );
 
-  const orgTemplates = templates.filter(
-    (t) => t.isGlobal || t.organizationId === session.organization.id,
+  const orgTemplates = useMemo(
+    () =>
+      templates.filter(
+        (t) => !t.isGlobal && t.organizationId === session.organization.id,
+      ),
+    [templates, session.organization.id],
   );
-  const visibleScreens = filterScreensForUser(screens, session.user);
+
+  const visibleScreens = filterScreensForUser(
+    liveScreens.length ? liveScreens : storeScreens,
+    session.user,
+  ).filter((s) => s.locationId && s.status !== "pairing");
   const isPremium = template?.displayConfig?.layout === "premium";
+  const canPublish = canPublishMenus(role);
 
   if (!canEditDesigner(role)) {
     return (
@@ -116,55 +199,185 @@ function TemplateEditPageInner() {
     );
   }
 
-  async function handleSaveLcdType() {
+  async function handlePublish() {
+    if (!canPublish || !template) return;
+    setError(null);
     setStatus(null);
-    setLcdSaving(true);
+    if (!selectedScreens.length && !screenGroupId) {
+      if (isPremium) setTab("target");
+      else editorRef.current?.openPanel("target");
+      setError("Select at least one screen or a video wall, then Publish.");
+      return;
+    }
+    setPublishing(true);
     try {
-      if (!/^\d{3,5}x\d{3,5}$/i.test(lcdResolution.trim())) {
-        throw new Error("Resolution must look like 1920x1080.");
-      }
       const token = await getApiToken();
-      await updateTemplate(
-        template!.id,
+      if (!token) throw new Error("Missing API auth token");
+      const canvasJson = !isPremium
+        ? editorRef.current?.getJson() ?? undefined
+        : undefined;
+      const displayConfig = isPremium
+        ? layoutRef.current?.getConfig()
+        : undefined;
+      const result = await publishTemplatePackage(
+        template.id,
         {
-          resolution: lcdResolution.trim(),
-          orientation: lcdOrientation,
+          canvasJson,
+          displayConfig,
+          resolution: nominalResolution(orientation),
+          orientation,
+          audioPlaylistId: audioPlaylistId || null,
+          audioVolume,
+          audioLoop,
+          audioMuted,
+          playlistId: playlistId || null,
+          playlistItemDurationSeconds: playlistId ? slideDuration : null,
+          playlistItemSortOrder:
+            playlistId && slideSortOrder !== "" ? slideSortOrder : null,
+          screenIds: selectedScreens,
+          screenGroupId: screenGroupId || null,
+          menuId: menu?.id ?? null,
+          changeSummary: `Published ${template.name} from template editor`,
         },
         token,
       );
-      setStatus("LCD type saved");
+      const mismatched = result.orientationMismatchScreenIds ?? [];
+      setStatus(
+        `Published v${result.version} to ${result.screenIds.length} screen${
+          result.screenIds.length === 1 ? "" : "s"
+        }.` +
+          (mismatched.length
+            ? ` ${mismatched.length} of them ${
+                mismatched.length === 1 ? "is" : "are"
+              } set to the other orientation — check the Target tab.`
+            : ""),
+      );
     } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Save failed");
+      setError(err instanceof Error ? err.message : "Publish failed");
     } finally {
-      setLcdSaving(false);
+      setPublishing(false);
     }
   }
 
-  async function handleSaveCanvas(json: DesignerCanvasJson) {
-    setSaving(true);
-    setStatus(null);
-    try {
-      const token = await getApiToken();
-      await updateTemplate(template!.id, { canvasJson: json }, token);
-      setStatus("Layout saved");
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
+  function toggleScreen(id: string) {
+    setSelectedScreens((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
-  async function handleSaveDisplayConfig(
-    config: ReturnType<typeof mergeDisplayConfig>,
-  ) {
-    setStatus(null);
-    try {
-      const token = await getApiToken();
-      await updateTemplate(template!.id, { displayConfig: config }, token);
-      setStatus("Layout saved");
-    } catch (err) {
-      throw err;
-    }
+  function handleGroupChange(id: string) {
+    setScreenGroupId(id);
+    if (!id) return;
+    const group = groups.find((g) => g.id === id);
+    if (!group) return;
+    const memberIds = group.members.map((m) => m.screenId);
+    setSelectedScreens((prev) =>
+      Array.from(new Set([...prev, ...memberIds])),
+    );
+  }
+
+  const screenSetupPanel = (
+    <div className="space-y-3 rounded-xl border border-border p-4">
+      <div>
+        <h2 className="text-sm font-semibold">Screen shape</h2>
+        <p className="text-xs text-muted-foreground">
+          No pixel size needed — the layout stretches to fill whatever
+          resolution the TV reports. Included in Publish with the rest of the
+          package.
+        </p>
+      </div>
+      <OrientationToggle
+        value={orientation}
+        onChange={setOrientation}
+        hint={orientationHint(orientation)}
+      />
+    </div>
+  );
+
+  const audioPanel = (
+    <TemplateAudioTab
+      audioPlaylists={audioPlaylists}
+      audioPlaylistId={audioPlaylistId}
+      audioVolume={audioVolume}
+      audioLoop={audioLoop}
+      audioMuted={audioMuted}
+      onChange={(patch) => {
+        if (patch.audioPlaylistId !== undefined) {
+          setAudioPlaylistId(patch.audioPlaylistId);
+        }
+        if (patch.audioVolume !== undefined) setAudioVolume(patch.audioVolume);
+        if (patch.audioLoop !== undefined) setAudioLoop(patch.audioLoop);
+        if (patch.audioMuted !== undefined) setAudioMuted(patch.audioMuted);
+      }}
+    />
+  );
+
+  const playlistPanel = (
+    <TemplatePlaylistTab
+      playlists={playlists}
+      playlistId={playlistId}
+      durationSeconds={slideDuration}
+      sortOrder={slideSortOrder}
+      templateId={template.id}
+      onChange={(patch) => {
+        if (patch.playlistId !== undefined) setPlaylistId(patch.playlistId);
+        if (patch.durationSeconds !== undefined) {
+          setSlideDuration(patch.durationSeconds);
+        }
+        if (patch.sortOrder !== undefined) setSlideSortOrder(patch.sortOrder);
+      }}
+    />
+  );
+
+  const targetPanel = (
+    <TemplateTargetTab
+      screens={visibleScreens}
+      groups={groups}
+      selectedScreenIds={selectedScreens}
+      screenGroupId={screenGroupId}
+      templateOrientation={orientation}
+      onToggleScreen={toggleScreen}
+      onGroupChange={handleGroupChange}
+    />
+  );
+
+  if (!isPremium) {
+    return (
+      <div className="-m-4 md:-m-6">
+        <VisualEditor
+          key={template.id}
+          ref={editorRef}
+          templateId={template.id}
+          templateName={
+            menu ? `${template.name} · ${menu.name}` : template.name
+          }
+          initialJson={template.canvasJson as DesignerCanvasJson}
+          orientation={orientation}
+          onOrientationChange={setOrientation}
+          menuItems={items}
+          templates={orgTemplates}
+          publishing={publishing}
+          statusMessage={status}
+          errorMessage={error}
+          onPublish={canPublish ? () => void handlePublish() : undefined}
+          hubPanels={{
+            setup: screenSetupPanel,
+            audio: audioPanel,
+            playlist: playlistPanel,
+            target: targetPanel,
+          }}
+          headerActions={
+            <Button
+              variant="outline"
+              size="sm"
+              render={<Link href="/dashboard/templates" />}
+            >
+              Gallery
+            </Button>
+          }
+        />
+      </div>
+    );
   }
 
   return (
@@ -173,10 +386,8 @@ function TemplateEditPageInner() {
         title={`Template · ${template.name}`}
         description={
           menu
-            ? `Editing TV layout for menu “${menu.name}”. Save, then publish to screens.`
-            : isPremium
-              ? "Premium 3-column TV board — branding and columns are saved on this template."
-              : "Drag-and-drop canvas editor. Save persists the template layout."
+            ? `Publishing hub for menu “${menu.name}”. Layout, audio, rotation, and screens go out together.`
+            : "Publishing hub — layout, background audio, playlist rotation, and screen targets in one Publish."
         }
         actions={
           <>
@@ -186,80 +397,47 @@ function TemplateEditPageInner() {
             >
               Gallery
             </Button>
-            {menu && canPublishMenus(role) ? (
-              <Button onClick={() => setPublishOpen(true)}>Publish</Button>
+            {canPublish ? (
+              <Button
+                onClick={() => void handlePublish()}
+                disabled={publishing}
+              >
+                {publishing ? "Publishing…" : "Publish"}
+              </Button>
             ) : null}
           </>
         }
       />
 
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
       {status ? (
         <p className="text-sm text-muted-foreground" role="status">
           {status}
         </p>
       ) : null}
 
-      <div className="space-y-3 rounded-xl border border-border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold">LCD / screen type</h2>
-            <p className="text-xs text-muted-foreground">
-              Target physical TV size for this layout. Match this when pairing
-              or publishing to a screen.
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => void handleSaveLcdType()}
-            disabled={lcdSaving}
-          >
-            {lcdSaving ? "Saving…" : "Save LCD type"}
-          </Button>
-        </div>
-        <TemplateLcdTypeFields
-          key={template.id}
-          resolution={lcdResolution}
-          orientation={lcdOrientation}
-          onChange={({ resolution, orientation }) => {
-            setLcdResolution(resolution);
-            setLcdOrientation(orientation);
-          }}
-        />
-      </div>
+      <TemplateHubTabBar tab={tab} onChange={setTab} />
 
-      {isPremium ? (
-        <TemplateLayoutSettings
-          config={template.displayConfig}
-          items={items}
-          onSave={handleSaveDisplayConfig}
-        />
-      ) : (
-        <MenuDesigner
-          key={template.id}
-          initialJson={template.canvasJson as DesignerCanvasJson}
-          menuItems={items}
-          onSave={handleSaveCanvas}
-          onPublish={
-            menu && canPublishMenus(role)
-              ? () => setPublishOpen(true)
-              : undefined
-          }
-          saving={saving}
-          statusMessage={status}
-        />
-      )}
-
-      {menu ? (
-        <PublishMenuDialog
-          open={publishOpen}
-          onClose={() => setPublishOpen(false)}
-          menuId={menu.id}
-          templates={orgTemplates}
-          screens={visibleScreens}
-          defaultTemplateId={template.id}
-        />
+      {tab === "layout" ? (
+        <>
+          {screenSetupPanel}
+          <TemplateLayoutSettings
+            ref={layoutRef}
+            config={template.displayConfig}
+            items={items}
+            onPublish={() => void handlePublish()}
+            publishing={publishing}
+          />
+        </>
       ) : null}
+
+      {tab === "audio" ? audioPanel : null}
+      {tab === "playlist" ? playlistPanel : null}
+      {tab === "target" ? targetPanel : null}
     </div>
   );
 }

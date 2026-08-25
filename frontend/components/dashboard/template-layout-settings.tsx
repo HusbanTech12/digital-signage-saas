@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import {
   BOARD_TRANSITION_OPTIONS,
@@ -48,22 +48,27 @@ function ColorField({
   );
 }
 
-export function TemplateLayoutSettings({
-  config,
-  items,
-  onSave,
-}: {
-  config: MenuDisplayConfig | null | undefined;
-  items: MenuItem[];
-  onSave: (config: MenuDisplayConfig) => Promise<void>;
-}) {
+export type TemplateLayoutSettingsHandle = {
+  getConfig: () => MenuDisplayConfig;
+};
+
+export const TemplateLayoutSettings = forwardRef<
+  TemplateLayoutSettingsHandle,
+  {
+    config: MenuDisplayConfig | null | undefined;
+    items: MenuItem[];
+    onPublish?: () => void;
+    publishing?: boolean;
+  }
+>(function TemplateLayoutSettings(
+  { config, items, onPublish, publishing },
+  ref,
+) {
   const initial = mergeDisplayConfig(config);
   const [draft, setDraft] = useState<MenuDisplayConfig>(initial);
   const [categoriesText, setCategoriesText] = useState(
     initial.categories.join(", "),
   );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [previewTick, setPreviewTick] = useState(0);
 
   const previewConfig = useMemo(
@@ -78,17 +83,9 @@ export function TemplateLayoutSettings({
     [draft, categoriesText],
   );
 
-  async function handleSave() {
-    setError(null);
-    setSaving(true);
-    try {
-      await onSave(previewConfig);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed.");
-    } finally {
-      setSaving(false);
-    }
-  }
+  useImperativeHandle(ref, () => ({
+    getConfig: () => previewConfig,
+  }));
 
   function resetDefaults() {
     setDraft({
@@ -126,19 +123,13 @@ export function TemplateLayoutSettings({
           <Button
             type="button"
             size="sm"
-            onClick={() => void handleSave()}
-            disabled={saving}
+            onClick={() => onPublish?.()}
+            disabled={publishing}
           >
-            {saving ? "Saving…" : "Save layout"}
+            {publishing ? "Publishing…" : "Publish"}
           </Button>
         </div>
       </div>
-
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-4 rounded-xl border border-border p-4">
@@ -345,20 +336,15 @@ export function TemplateLayoutSettings({
             Live preview (16:9 TV)
           </p>
           <div className="aspect-video overflow-hidden">
-            <div
-              className="origin-top-left scale-[0.38]"
-              style={{ width: "263.16%", height: "263.16%" }}
-            >
-              <PremiumMenuBoard
-                items={items}
-                config={previewConfig}
-                statusLabel="Preview"
-                contentKey={`preview-${previewTick}`}
-              />
-            </div>
+            <PremiumMenuBoard
+              items={items}
+              config={previewConfig}
+              statusLabel="Preview"
+              contentKey={`preview-${previewTick}`}
+            />
           </div>
         </div>
       </div>
     </div>
   );
-}
+});

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./display-animations.css";
+import "./kiosk-shell.css";
 
 export const metadata: Metadata = {
   title: "Display · Signage",
@@ -14,7 +15,7 @@ export default function DisplayLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-50 antialiased">
+    <div className="h-dvh w-screen overflow-hidden bg-zinc-950 text-zinc-50 antialiased">
       {children}
     </div>
   );

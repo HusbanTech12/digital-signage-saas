@@ -8,6 +8,7 @@ import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
 import { PlaylistPlayer } from "@/components/display/playlist-player";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
+import { boardMatchesOrientation } from "@/lib/display/orientation";
 import { useLiveApi } from "@/lib/api/config";
 import {
   readDisplayCache,
@@ -243,7 +244,7 @@ export function KioskPlayer({
 
   if (booting && !payload) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-400">
+      <div className="flex h-dvh w-screen items-center justify-center overflow-hidden bg-zinc-950 text-zinc-400">
         Loading display…
       </div>
     );
@@ -251,7 +252,7 @@ export function KioskPlayer({
 
   if (!payload) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-950 px-6 text-center text-zinc-50">
+      <div className="flex h-dvh w-screen flex-col items-center justify-center overflow-hidden bg-zinc-950 px-6 text-center text-zinc-50">
         <p className="text-sm tracking-[0.2em] text-zinc-500 uppercase">
           Signage display
         </p>
@@ -317,9 +318,16 @@ export function KioskPlayer({
     Boolean(showCanvas) &&
     !playlist;
 
+  // Stretch to fill only when the board's own shape agrees with the screen.
+  // Legacy layouts saved in the other orientation stay letterboxed.
+  const canvasFills =
+    tiledCanvas ||
+    boardMatchesOrientation(payload.canvasJson, payload.orientation);
+
   const board = playlist ? (
     <PlaylistPlayer
       playlist={playlist}
+      orientation={payload.orientation}
       statusLabel={statusLabel}
       wall={wall}
     />
@@ -328,15 +336,17 @@ export function KioskPlayer({
       className={
         tiledCanvas
           ? "h-full w-full"
-          : "flex h-dvh w-screen items-center justify-center overflow-hidden p-0"
+          : canvasFills
+            ? "h-dvh w-screen overflow-hidden"
+            : "flex h-dvh w-screen items-center justify-center overflow-hidden"
       }
     >
       <CanvasBoard
         canvasJson={payload.canvasJson}
         className={
-          tiledCanvas ? "h-full w-full max-w-none" : "h-auto w-full max-w-[100vw]"
+          canvasFills ? "h-full w-full max-w-none" : "h-auto w-full max-w-[100vw]"
         }
-        fillViewport={tiledCanvas}
+        fillViewport={canvasFills}
         animations={animations}
         contentKey={contentKey}
       />
@@ -345,6 +355,7 @@ export function KioskPlayer({
     <PremiumMenuBoard
       items={payload.items}
       config={displayConfig}
+      orientation={payload.orientation}
       statusLabel={statusLabel}
       contentKey={contentKey}
     />
@@ -352,6 +363,7 @@ export function KioskPlayer({
     <MenuFallbackBoard
       title={payload.menuName ?? payload.screenName}
       items={payload.items}
+      orientation={payload.orientation}
       animations={animations}
       contentKey={contentKey}
     />

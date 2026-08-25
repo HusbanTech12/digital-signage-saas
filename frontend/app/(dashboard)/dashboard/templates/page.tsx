@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { TemplateLcdTypeFields } from "@/components/dashboard/template-lcd-type-fields";
+import { OrientationToggle } from "@/components/dashboard/orientation-toggle";
 import { useMockSession } from "@/components/providers/mock-session-provider";
 import { useMockStore } from "@/components/providers/mock-data-provider";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,10 @@ import {
   deleteTemplate,
   duplicateTemplate,
 } from "@/lib/data/menus";
-import { lcdPresetLabel } from "@/lib/display/lcd-presets";
+import {
+  nominalResolution,
+  orientationLabel,
+} from "@/lib/display/orientation";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
 import type { ScreenOrientation } from "@/lib/types/schema";
 
@@ -121,10 +124,6 @@ function TemplatesPageInner() {
             ? mergeDisplayConfig(template.displayConfig)
             : null;
           const isPortrait = template.orientation === "portrait";
-          const lcdLabel = lcdPresetLabel(
-            template.resolution || "1920x1080",
-            template.orientation || "landscape",
-          );
 
           return (
             <article
@@ -137,13 +136,11 @@ function TemplatesPageInner() {
                 }`}
               >
                 {isPremium && previewConfig ? (
-                  <div
-                    className="pointer-events-none origin-top-left scale-[0.22]"
-                    style={{ width: "454.55%", height: "454.55%" }}
-                  >
+                  <div className="pointer-events-none h-full w-full">
                     <PremiumMenuBoard
                       items={previewItems}
                       config={previewConfig}
+                      orientation={isPortrait ? "portrait" : "landscape"}
                       statusLabel="Preview"
                     />
                   </div>
@@ -157,11 +154,10 @@ function TemplatesPageInner() {
                 {template.name}
               </h2>
               <p className="mt-1 text-xs font-medium text-foreground">
-                {lcdLabel}
+                {orientationLabel(template.orientation || "landscape")}
               </p>
               <p className="text-xs text-muted-foreground">
-                {template.resolution || "1920x1080"} ·{" "}
-                {template.orientation || "landscape"}
+                Fills any screen size
               </p>
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                 {template.description || "No description"}
@@ -228,7 +224,6 @@ function CreateTemplateDialog({
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [resolution, setResolution] = useState("1920x1080");
   const [orientation, setOrientation] =
     useState<ScreenOrientation>("landscape");
   const [error, setError] = useState<string | null>(null);
@@ -239,16 +234,13 @@ function CreateTemplateDialog({
     setError(null);
     setSaving(true);
     try {
-      if (!/^\d{3,5}x\d{3,5}$/i.test(resolution.trim())) {
-        throw new Error("Resolution must look like 1920x1080.");
-      }
       const token = await getApiToken();
       const template = await createTemplate(
         {
           organizationId,
           name,
           description,
-          resolution: resolution.trim(),
+          resolution: nominalResolution(orientation),
           orientation,
         },
         token,
@@ -293,14 +285,7 @@ function CreateTemplateDialog({
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
-        <TemplateLcdTypeFields
-          resolution={resolution}
-          orientation={orientation}
-          onChange={({ resolution: r, orientation: o }) => {
-            setResolution(r);
-            setOrientation(o);
-          }}
-        />
+        <OrientationToggle value={orientation} onChange={setOrientation} />
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>

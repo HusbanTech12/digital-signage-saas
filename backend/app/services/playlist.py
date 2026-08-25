@@ -230,20 +230,19 @@ async def delete_playlist(db: AsyncSession, user: User, playlist_id: str) -> Non
     await db.commit()
 
 
-async def publish_playlist(
+async def stamp_playlist_published(
     db: AsyncSession,
     user: User,
-    playlist_id: str,
-    screen_ids: list[str],
+    playlist: Playlist,
     *,
     bump_version: bool = True,
     change_summary: str | None = None,
-) -> tuple[Playlist, list[Screen]]:
+) -> None:
+    """Bump version and snapshot. Does not assign screens or commit."""
     from app.services import content_versions as cv_service
     from app.services.audit import record_audit
 
     require_permission(user, PLAYLISTS_PUBLISH)
-    playlist = await get_org_playlist_or_404(db, user, playlist_id)
     if playlist.status == "archived":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -275,6 +274,37 @@ async def publish_playlist(
         publisher=user,
         change_summary=change_summary,
     )
+    await record_audit(
+        db,
+        organization_id=user.organization_id,
+        action="playlist.published",
+        actor=user,
+        metadata={
+            "playlistId": playlist.id,
+            "version": playlist.version,
+            "versionId": ver.id,
+            "changeSummary": change_summary,
+        },
+    )
+
+
+async def publish_playlist(
+    db: AsyncSession,
+    user: User,
+    playlist_id: str,
+    screen_ids: list[str],
+    *,
+    bump_version: bool = True,
+    change_summary: str | None = None,
+) -> tuple[Playlist, list[Screen]]:
+    playlist = await get_org_playlist_or_404(db, user, playlist_id)
+    await stamp_playlist_published(
+        db,
+        user,
+        playlist,
+        bump_version=bump_version,
+        change_summary=change_summary,
+    )
 
     updated: list[Screen] = []
     if screen_ids:
@@ -287,20 +317,6 @@ async def publish_playlist(
         for screen in result.scalars().all():
             screen.active_playlist_id = playlist.id
             updated.append(screen)
-
-    await record_audit(
-        db,
-        organization_id=user.organization_id,
-        action="playlist.published",
-        actor=user,
-        metadata={
-            "playlistId": playlist.id,
-            "version": playlist.version,
-            "versionId": ver.id,
-            "screenIds": [s.id for s in updated],
-            "changeSummary": change_summary,
-        },
-    )
 
     await db.commit()
     playlist = await get_org_playlist_or_404(db, user, playlist.id)

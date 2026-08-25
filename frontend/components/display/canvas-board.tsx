@@ -47,7 +47,11 @@ export function CanvasBoard({
   className?: string;
   animations?: Partial<DisplayAnimationConfig> | null;
   contentKey?: string;
-  /** Stretch to parent (video-wall tile). Default keeps design aspect ratio. */
+  /**
+   * Stretch to fill the parent instead of preserving the design aspect ratio.
+   * The board's own aspect ratio already matches its orientation, so filling
+   * makes content cover any TV resolution without letterboxing.
+   */
   fillViewport?: boolean;
 }) {
   const animations = mergeAnimations(

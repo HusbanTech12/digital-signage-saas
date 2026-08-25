@@ -15,9 +15,12 @@ import {
   listMenusApi,
   listTemplatesApi,
   publishMenuApi,
+  publishTemplateApi,
   updateMenuApi,
   updateMenuItemApi,
   updateTemplateApi,
+  type TemplatePublishInput,
+  type TemplatePublishResult,
 } from "@/lib/api/menus";
 import { useLiveApi } from "@/lib/api/config";
 import { withProvisioned } from "@/lib/data/tenant";
@@ -265,4 +268,75 @@ export async function deleteTemplate(
     return;
   }
   deleteTemplateMock(templateId);
+}
+
+export async function publishTemplatePackage(
+  templateId: string,
+  body: TemplatePublishInput,
+  token?: Token | null,
+): Promise<TemplatePublishResult> {
+  if (useLiveApi() && token) {
+    const result = await withProvisioned(token, () =>
+      publishTemplateApi(token, templateId, body),
+    );
+    upsertTemplate(result.template);
+    const snap = getMockStoreSnapshot();
+    for (const id of result.screenIds) {
+      const screen = snap.screens.find((s) => s.id === id);
+      if (!screen) continue;
+      upsertScreen({
+        ...screen,
+        activeTemplateId: result.template.id,
+        activePlaylistId: result.playlistId,
+        activeAudioPlaylistId: result.audioPlaylistId,
+        activeMenuId: body.menuId ?? null,
+        audioVolume: body.audioVolume ?? screen.audioVolume,
+        audioLoop: body.audioLoop ?? screen.audioLoop,
+        audioMuted: body.audioMuted ?? screen.audioMuted,
+      });
+    }
+    return result;
+  }
+  const template = updateTemplateMock(templateId, {
+    canvasJson: body.canvasJson,
+    displayConfig: body.displayConfig ?? undefined,
+    resolution: body.resolution,
+    orientation: body.orientation,
+  });
+  const next: Template = {
+    ...template,
+    audioPlaylistId: body.audioPlaylistId ?? null,
+    audioVolume: body.audioVolume ?? 0.5,
+    audioLoop: body.audioLoop ?? true,
+    audioMuted: body.audioMuted ?? false,
+    playlistId: body.playlistId ?? null,
+    playlistItemDurationSeconds: body.playlistItemDurationSeconds ?? null,
+    status: "published",
+    version: (template.version ?? 1) + 1,
+  };
+  upsertTemplate(next);
+  const snap = getMockStoreSnapshot();
+  for (const id of body.screenIds) {
+    const screen = snap.screens.find((s) => s.id === id);
+    if (!screen) continue;
+    upsertScreen({
+      ...screen,
+      activeTemplateId: next.id,
+      activePlaylistId: body.playlistId ?? null,
+      activeAudioPlaylistId: body.audioPlaylistId ?? null,
+      activeMenuId: body.menuId ?? null,
+    });
+  }
+  return {
+    template: next,
+    screenIds: body.screenIds,
+    playlistId: body.playlistId ?? null,
+    audioPlaylistId: body.audioPlaylistId ?? null,
+    screenGroupId: body.screenGroupId ?? null,
+    version: next.version ?? 1,
+    orientationMismatchScreenIds: body.screenIds.filter((id) => {
+      const screen = snap.screens.find((s) => s.id === id);
+      return screen ? screen.orientation !== next.orientation : false;
+    }),
+  };
 }
