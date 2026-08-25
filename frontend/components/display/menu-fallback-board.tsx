@@ -7,6 +7,7 @@ import {
 import {
   AutoFitContent,
   DisplaySurface,
+  bu,
 } from "@/components/display/display-surface";
 import {
   DEFAULT_DISPLAY_ANIMATIONS,
@@ -14,6 +15,32 @@ import {
   type DisplayAnimationConfig,
 } from "@/lib/display/animations";
 import type { MenuItem, ScreenOrientation } from "@/lib/types/schema";
+
+/** Board-unit scale; portrait runs one column so its type can be larger. */
+const SCALE = {
+  landscape: {
+    padX: 4.5,
+    padY: 3.5,
+    eyebrow: 1.3,
+    title: 5.4,
+    category: 3,
+    item: 2.5,
+    description: 1.6,
+    columnGap: 4,
+    rowGap: 2.4,
+  },
+  portrait: {
+    padX: 5,
+    padY: 4,
+    eyebrow: 1.8,
+    title: 6.8,
+    category: 3.8,
+    item: 3.2,
+    description: 2,
+    columnGap: 3.6,
+    rowGap: 2.8,
+  },
+} as const;
 
 /** Simple CSS menu board when no template canvas is available. */
 export function MenuFallbackBoard({
@@ -41,86 +68,113 @@ export function MenuFallbackBoard({
 
   const categories = Object.keys(byCategory);
   const isPortrait = orientation === "portrait";
+  const s = SCALE[isPortrait ? "portrait" : "landscape"];
   // Landscape reads best at up to three columns; portrait always stacks.
   const columns = isPortrait ? 1 : Math.min(Math.max(categories.length, 1), 3);
   let itemIndex = 0;
 
   return (
-    <DisplaySurface
-      orientation={orientation}
-      className="bg-zinc-950"
-      stageClassName="bg-zinc-950"
-    >
+    <DisplaySurface className="bg-zinc-950">
       <AnimatedBoard
         animations={animations}
         contentKey={contentKey}
-        className={`flex h-full w-full flex-col overflow-hidden text-zinc-50 ${
-          isPortrait ? "px-10 py-10" : "px-14 py-10"
-        }`}
+        className="flex h-full w-full flex-col overflow-hidden text-zinc-50"
+        style={{ padding: `${bu(s.padY)} ${bu(s.padX)}` }}
       >
-        <header className="shrink-0 border-b border-zinc-800 pb-6">
-          <p className="text-xs tracking-[0.25em] text-zinc-500 uppercase">
+        <header
+          className="shrink-0 border-b border-zinc-800"
+          style={{ paddingBottom: bu(s.padY * 0.6) }}
+        >
+          <p
+            className="tracking-[0.25em] text-zinc-500 uppercase"
+            style={{ fontSize: bu(s.eyebrow) }}
+          >
             Live menu
           </p>
           <h1
-            className={`mt-2 truncate font-semibold tracking-tight ${
-              isPortrait ? "text-4xl" : "text-5xl"
-            }`}
+            className="truncate font-semibold tracking-tight"
+            style={{
+              fontSize: bu(s.title),
+              lineHeight: 1.1,
+              marginTop: bu(0.8),
+            }}
           >
             {title}
           </h1>
         </header>
 
         {categories.length === 0 ? (
-          <p className="mt-16 text-xl text-zinc-500">
+          <p
+            className="text-zinc-500"
+            style={{ fontSize: bu(s.item), marginTop: bu(8) }}
+          >
             Waiting for published menu content…
           </p>
         ) : (
           <AutoFitContent
             contentKey={`${contentKey ?? ""}:${orientation}:${items.length}`}
-            className="mt-8 min-h-0 flex-1"
+            className="min-h-0 flex-1"
           >
             <div
-              className={`grid h-full ${isPortrait ? "gap-7" : "gap-10"}`}
+              className="grid"
               style={{
+                gap: bu(s.columnGap),
                 gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                alignContent: "start",
+                alignItems: "start",
+                paddingTop: bu(s.padY * 0.8),
               }}
             >
               {categories.map((category) => (
                 <section key={category} className="min-w-0">
                   <h2
-                    className={`mb-4 font-medium tracking-wide text-zinc-300 ${
-                      isPortrait ? "text-lg" : "text-xl"
-                    }`}
+                    className="font-medium tracking-wide text-zinc-300"
+                    style={{
+                      fontSize: bu(s.category),
+                      marginBottom: bu(s.rowGap),
+                    }}
                   >
                     {category}
                   </h2>
-                  <ul className={isPortrait ? "space-y-3" : "space-y-4"}>
-                    {byCategory[category].map((item) => {
+                  <ul>
+                    {byCategory[category].map((item, idx) => {
                       const index = itemIndex++;
                       return (
-                        <li key={item.id}>
+                        <li
+                          key={item.id}
+                          style={{
+                            marginTop: idx === 0 ? undefined : bu(s.rowGap),
+                          }}
+                        >
                           <AnimatedItem animations={animations} index={index}>
-                            <div className="flex items-baseline justify-between gap-4 border-b border-zinc-900 pb-3">
+                            <div
+                              className="flex items-baseline justify-between border-b border-zinc-900"
+                              style={{
+                                gap: bu(2),
+                                paddingBottom: bu(s.rowGap * 0.6),
+                              }}
+                            >
                               <div className="min-w-0">
                                 <p
-                                  className={`truncate font-medium ${
-                                    isPortrait ? "text-lg" : "text-xl"
-                                  }`}
+                                  className="truncate font-medium"
+                                  style={{ fontSize: bu(s.item) }}
                                 >
                                   {item.name}
                                 </p>
                                 {item.description ? (
-                                  <p className="mt-1 line-clamp-2 text-xs text-zinc-500">
+                                  <p
+                                    className="line-clamp-2 text-zinc-500"
+                                    style={{
+                                      fontSize: bu(s.description),
+                                      marginTop: bu(0.4),
+                                    }}
+                                  >
                                     {item.description}
                                   </p>
                                 ) : null}
                               </div>
                               <p
-                                className={`shrink-0 tabular-nums text-zinc-200 ${
-                                  isPortrait ? "text-lg" : "text-xl"
-                                }`}
+                                className="shrink-0 tabular-nums text-zinc-200"
+                                style={{ fontSize: bu(s.item) }}
                               >
                                 ${item.price.toFixed(2)}
                               </p>

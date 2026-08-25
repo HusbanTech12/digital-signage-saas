@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode, Ref } from "react";
 import {
   animationStyleVars,
   boardTransitionClass,
@@ -16,6 +16,7 @@ export function AnimatedBoard({
   contentKey,
   className,
   style,
+  ref,
   children,
 }: {
   animations: DisplayAnimationConfig;
@@ -23,11 +24,13 @@ export function AnimatedBoard({
   contentKey?: string;
   className?: string;
   style?: CSSProperties;
+  ref?: Ref<HTMLDivElement>;
   children: ReactNode;
 }) {
   const active = animations.enabled;
   return (
     <div
+      ref={ref}
       key={
         animations.animateOnUpdate && contentKey
           ? `board-${contentKey}`

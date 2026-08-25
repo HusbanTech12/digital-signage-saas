@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BackgroundAudioPlayer } from "@/components/display/background-audio-player";
 import { CanvasBoard } from "@/components/display/canvas-board";
+import { AspectFitBox } from "@/components/display/display-surface";
 import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
 import { PlaylistPlayer } from "@/components/display/playlist-player";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
@@ -323,6 +324,16 @@ export function KioskPlayer({
   const canvasFills =
     tiledCanvas ||
     boardMatchesOrientation(payload.canvasJson, payload.orientation);
+  const canvasBoardSize = {
+    width:
+      typeof payload.canvasJson?.width === "number"
+        ? payload.canvasJson.width
+        : 1280,
+    height:
+      typeof payload.canvasJson?.height === "number"
+        ? payload.canvasJson.height
+        : 720,
+  };
 
   const board = playlist ? (
     <PlaylistPlayer
@@ -332,24 +343,29 @@ export function KioskPlayer({
       wall={wall}
     />
   ) : showCanvas && payload.canvasJson ? (
-    <div
-      className={
-        tiledCanvas
-          ? "h-full w-full"
-          : canvasFills
-            ? "h-dvh w-screen overflow-hidden"
-            : "flex h-dvh w-screen items-center justify-center overflow-hidden"
-      }
-    >
-      <CanvasBoard
-        canvasJson={payload.canvasJson}
-        className={
-          canvasFills ? "h-full w-full max-w-none" : "h-auto w-full max-w-[100vw]"
-        }
-        fillViewport={canvasFills}
-        animations={animations}
-        contentKey={contentKey}
-      />
+    <div className={tiledCanvas ? "h-full w-full" : "h-dvh w-screen overflow-hidden"}>
+      {canvasFills ? (
+        <CanvasBoard
+          canvasJson={payload.canvasJson}
+          className="h-full w-full max-w-none"
+          fillViewport
+          animations={animations}
+          contentKey={contentKey}
+        />
+      ) : (
+        <AspectFitBox
+          width={canvasBoardSize.width}
+          height={canvasBoardSize.height}
+        >
+          <CanvasBoard
+            canvasJson={payload.canvasJson}
+            className="h-full w-full max-w-none"
+            fillViewport
+            animations={animations}
+            contentKey={contentKey}
+          />
+        </AspectFitBox>
+      )}
     </div>
   ) : usePremium && displayConfig ? (
     <PremiumMenuBoard

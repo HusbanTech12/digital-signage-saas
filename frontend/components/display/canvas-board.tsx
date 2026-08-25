@@ -1,6 +1,12 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { AnimatedBoard } from "@/components/display/animated-board";
 import {
   animationStyleVars,
@@ -12,6 +18,36 @@ import {
 } from "@/lib/display/animations";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
 import { cn } from "@/lib/utils";
+
+// SSR renders this component too; layout effects only matter in the browser.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/**
+ * 1% of the board's own width, so text scales with the board rather than the
+ * browser window. Matters for video-wall tiles and dashboard previews, where
+ * the board is deliberately not the same size as the viewport.
+ */
+function useBoardUnit(ref: React.RefObject<HTMLDivElement | null>) {
+  const [unit, setUnit] = useState(0);
+
+  useIsomorphicLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const measure = () => {
+      const { clientWidth } = element;
+      if (clientWidth) setUnit(clientWidth / 100);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return unit;
+}
 
 type CanvasObject = {
   type?: string;
@@ -66,21 +102,27 @@ export function CanvasBoard({
   const objects = Array.isArray(canvasJson.objects)
     ? (canvasJson.objects as CanvasObject[])
     : [];
+  const boardRef = useRef<HTMLDivElement>(null);
+  const unit = useBoardUnit(boardRef);
 
   return (
     <AnimatedBoard
+      ref={boardRef}
       animations={animations}
       contentKey={contentKey}
       className={className}
-      style={{
-        position: "relative",
-        width: "100%",
-        height: fillViewport ? "100%" : undefined,
-        minHeight: fillViewport ? "100%" : undefined,
-        aspectRatio: fillViewport ? undefined : `${width} / ${height}`,
-        background,
-        overflow: "hidden",
-      }}
+      style={
+        {
+          position: "relative",
+          width: "100%",
+          height: fillViewport ? "100%" : undefined,
+          minHeight: fillViewport ? "100%" : undefined,
+          aspectRatio: fillViewport ? undefined : `${width} / ${height}`,
+          background,
+          overflow: "hidden",
+          ...(unit ? { "--canvas-unit": `${unit}px` } : null),
+        } as CSSProperties
+      }
     >
       {objects.map((obj, index) => (
         <CanvasObjectView
@@ -116,7 +158,7 @@ function CanvasObjectView({
     (((obj.width ?? 100) * (obj.scaleX ?? 1)) / canvasWidth) * 100;
   const heightPct =
     (((obj.height ?? 40) * (obj.scaleY ?? 1)) / canvasHeight) * 100;
-  const fontSizeVw = ((obj.fontSize ?? 18) / canvasWidth) * 100;
+  const fontSizeUnits = ((obj.fontSize ?? 18) / canvasWidth) * 100;
   const transform = obj.angle ? `rotate(${obj.angle}deg)` : undefined;
   const delay = itemDelayMs(index, animations.staggerMs);
   const animClass = itemAnimationClass(
@@ -163,7 +205,7 @@ function CanvasObjectView({
           top: `${topPct}%`,
           width: `${widthPct}%`,
           color: obj.fill ?? "#fff",
-          fontSize: `${fontSizeVw}vw`,
+          fontSize: `calc(var(--canvas-unit, 1vw) * ${fontSizeUnits})`,
           fontFamily: obj.fontFamily ?? "system-ui, sans-serif",
           fontWeight: obj.fontWeight ?? 400,
           opacity: obj.opacity ?? 1,

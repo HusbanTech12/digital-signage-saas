@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CanvasBoard } from "@/components/display/canvas-board";
+import { AspectFitBox } from "@/components/display/display-surface";
 import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import type {
@@ -116,21 +117,28 @@ function CanvasSlide({
   contentKey: string;
 }) {
   const fills = boardMatchesOrientation(canvas, orientation);
+  const board = (
+    <CanvasBoard
+      canvasJson={canvas}
+      className="h-full w-full max-w-none"
+      fillViewport
+      animations={mergeDisplayConfig(slide.displayConfig).animations}
+      contentKey={contentKey}
+    />
+  );
+
   return (
-    <div
-      className={
-        fills
-          ? "h-dvh w-screen overflow-hidden bg-zinc-950"
-          : "flex h-dvh w-screen items-center justify-center overflow-hidden bg-zinc-950"
-      }
-    >
-      <CanvasBoard
-        canvasJson={canvas}
-        className={fills ? "h-full w-full max-w-none" : "h-auto w-full max-w-[100vw]"}
-        fillViewport={fills}
-        animations={mergeDisplayConfig(slide.displayConfig).animations}
-        contentKey={contentKey}
-      />
+    <div className="h-dvh w-screen overflow-hidden bg-zinc-950">
+      {fills ? (
+        board
+      ) : (
+        <AspectFitBox
+          width={typeof canvas.width === "number" ? canvas.width : 1280}
+          height={typeof canvas.height === "number" ? canvas.height : 720}
+        >
+          {board}
+        </AspectFitBox>
+      )}
     </div>
   );
 }

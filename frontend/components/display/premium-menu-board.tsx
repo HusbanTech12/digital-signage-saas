@@ -8,6 +8,7 @@ import {
 import {
   AutoFitContent,
   DisplaySurface,
+  bu,
 } from "@/components/display/display-surface";
 import type { MenuDisplayConfig } from "@/lib/display/menu-board-theme";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
@@ -44,35 +45,39 @@ function formatDate(d: Date) {
 }
 
 /**
- * Type scale for the fixed design stage. Sizes are absolute because the stage
- * is always the same size — the surface scales the whole board to the TV.
+ * Type and spacing scale in board units (1% of the panel's shorter side).
+ * Portrait runs a single column, so it can afford larger text than landscape.
  */
-const TYPE = {
+const SCALE = {
   landscape: {
-    pad: "px-14 py-10",
-    brand: "text-5xl",
-    subtitle: "text-sm",
-    clock: "text-4xl",
-    date: "text-xs",
-    category: "text-2xl",
-    item: "text-lg",
-    description: "text-sm",
-    gap: "gap-10",
-    headerGap: "mb-8 pb-6",
-    rowGap: "space-y-5",
+    padX: 4.5,
+    padY: 3.5,
+    brand: 5.6,
+    subtitle: 1.4,
+    clock: 4,
+    date: 1.1,
+    status: 1,
+    category: 3.2,
+    item: 2.5,
+    description: 1.6,
+    soldOut: 1.2,
+    columnGap: 4,
+    rowGap: 2.6,
   },
   portrait: {
-    pad: "px-10 py-10",
-    brand: "text-4xl",
-    subtitle: "text-xs",
-    clock: "text-3xl",
-    date: "text-[10px]",
-    category: "text-xl",
-    item: "text-base",
-    description: "text-xs",
-    gap: "gap-7",
-    headerGap: "mb-7 pb-5",
-    rowGap: "space-y-4",
+    padX: 5,
+    padY: 4,
+    brand: 7,
+    subtitle: 1.9,
+    clock: 5,
+    date: 1.5,
+    status: 1.4,
+    category: 4,
+    item: 3.2,
+    description: 2,
+    soldOut: 1.5,
+    columnGap: 3.6,
+    rowGap: 3,
   },
 } as const;
 
@@ -95,7 +100,8 @@ export function PremiumMenuBoard({
   const config = mergeDisplayConfig(configIn);
   const now = useLiveClock(config.showClock);
   const anim = config.animations;
-  const type = TYPE[orientation];
+  const isPortrait = orientation === "portrait";
+  const s = SCALE[isPortrait ? "portrait" : "landscape"];
 
   const visibleItems = useMemo(
     () => (config.showSoldOut ? items : items.filter((i) => i.available)),
@@ -129,9 +135,7 @@ export function PremiumMenuBoard({
 
   return (
     <DisplaySurface
-      orientation={orientation}
-      style={{ backgroundColor: config.backgroundColor }}
-      stageStyle={{
+      style={{
         backgroundColor: config.backgroundColor,
         backgroundImage: `radial-gradient(ellipse 80% 60% at 50% 0%, color-mix(in srgb, ${config.accentColor} 12%, transparent), ${config.backgroundColor})`,
       }}
@@ -139,25 +143,39 @@ export function PremiumMenuBoard({
       <AnimatedBoard
         animations={anim}
         contentKey={contentKey}
-        className={`flex h-full w-full flex-col overflow-hidden ${type.pad}`}
-        style={{ color: config.textColor }}
+        className="flex h-full w-full flex-col overflow-hidden"
+        style={{
+          color: config.textColor,
+          padding: `${bu(s.padY)} ${bu(s.padX)}`,
+        }}
       >
         <header
-          className={`flex shrink-0 items-start justify-between gap-8 border-b border-white/10 ${type.headerGap}`}
+          className="flex shrink-0 items-start justify-between border-b border-white/10"
+          style={{
+            gap: bu(s.columnGap),
+            marginBottom: bu(s.padY * 0.8),
+            paddingBottom: bu(s.padY * 0.6),
+          }}
         >
           <div className="min-w-0">
             <h1
-              className={`truncate font-semibold tracking-tight ${type.brand}`}
+              className="truncate font-semibold tracking-tight"
               style={{
                 fontFamily: "Georgia, 'Times New Roman', serif",
                 color: config.textColor,
+                fontSize: bu(s.brand),
+                lineHeight: 1.1,
               }}
             >
               {config.brandTitle}
             </h1>
             <p
-              className={`mt-2 font-medium tracking-[0.35em] ${type.subtitle}`}
-              style={{ color: config.accentColor }}
+              className="font-medium tracking-[0.35em]"
+              style={{
+                color: config.accentColor,
+                fontSize: bu(s.subtitle),
+                marginTop: bu(0.8),
+              }}
             >
               {config.subtitle}
             </p>
@@ -166,22 +184,39 @@ export function PremiumMenuBoard({
           {config.showClock ? (
             <div className="shrink-0 text-right">
               <p
-                className={`font-light tabular-nums tracking-tight ${type.clock}`}
-                style={{ color: config.textColor }}
+                className="font-light tabular-nums tracking-tight"
+                style={{
+                  color: config.textColor,
+                  fontSize: bu(s.clock),
+                  lineHeight: 1.1,
+                }}
               >
                 {formatTime(now)}
               </p>
               <p
-                className={`mt-1 tracking-[0.2em] ${type.date}`}
-                style={{ color: config.mutedColor }}
+                className="tracking-[0.2em]"
+                style={{
+                  color: config.mutedColor,
+                  fontSize: bu(s.date),
+                  marginTop: bu(0.5),
+                }}
               >
                 {formatDate(now)}
               </p>
               {statusLabel ? (
-                <p className="mt-2 flex items-center justify-end gap-1.5 text-[10px] tracking-wide uppercase">
+                <p
+                  className="flex items-center justify-end tracking-wide uppercase"
+                  style={{
+                    fontSize: bu(s.status),
+                    marginTop: bu(0.8),
+                    gap: bu(0.6),
+                  }}
+                >
                   <span
-                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    className="inline-block rounded-full"
                     style={{
+                      width: bu(0.8),
+                      height: bu(0.8),
                       backgroundColor: statusLabel
                         .toLowerCase()
                         .includes("live")
@@ -203,28 +238,25 @@ export function PremiumMenuBoard({
           className="min-h-0 flex-1"
         >
           <div
-            className={`grid h-full ${type.gap}`}
-            style={
-              orientation === "portrait"
-                ? {
-                    gridTemplateColumns: "minmax(0, 1fr)",
-                    gridTemplateRows: `repeat(${sectionCount}, auto)`,
-                    alignContent: "start",
-                  }
-                : {
-                    gridTemplateColumns: `repeat(${sectionCount}, minmax(0, 1fr))`,
-                    alignItems: "start",
-                  }
-            }
+            className="grid"
+            style={{
+              gap: bu(s.columnGap),
+              gridTemplateColumns: isPortrait
+                ? "minmax(0, 1fr)"
+                : `repeat(${sectionCount}, minmax(0, 1fr))`,
+              alignItems: "start",
+            }}
           >
             {byCategory.map(({ category, items: catItems }) => (
               <section key={category} className="min-w-0">
                 <h2
-                  className={`border-b pb-2 font-medium tracking-wide ${type.category}`}
+                  className="border-b font-medium tracking-wide"
                   style={{
                     fontFamily: "Georgia, 'Times New Roman', serif",
                     color: config.accentColor,
                     borderColor: `color-mix(in srgb, ${config.accentColor} 40%, transparent)`,
+                    fontSize: bu(s.category),
+                    paddingBottom: bu(0.8),
                   }}
                 >
                   {category}
@@ -232,25 +264,35 @@ export function PremiumMenuBoard({
 
                 {catItems.length === 0 ? (
                   <p
-                    className="mt-6 text-sm italic"
-                    style={{ color: config.mutedColor }}
+                    className="italic"
+                    style={{
+                      color: config.mutedColor,
+                      fontSize: bu(s.item),
+                      marginTop: bu(s.rowGap),
+                    }}
                   >
                     —
                   </p>
                 ) : (
-                  <ul className={`mt-5 ${type.rowGap}`}>
-                    {catItems.map((item) => {
+                  <ul style={{ marginTop: bu(s.rowGap) }}>
+                    {catItems.map((item, idx) => {
                       const soldOut = !item.available;
                       const index = itemIndex++;
                       return (
                         <li
                           key={item.id}
                           className={soldOut ? "opacity-55" : undefined}
+                          style={{
+                            marginTop: idx === 0 ? undefined : bu(s.rowGap),
+                          }}
                         >
                           <AnimatedItem animations={anim} index={index}>
-                            <div className="flex items-baseline gap-2">
+                            <div
+                              className="flex items-baseline"
+                              style={{ gap: bu(1) }}
+                            >
                               <span
-                                className={`min-w-0 shrink font-medium ${type.item}`}
+                                className="min-w-0 shrink font-medium"
                                 style={{
                                   color: soldOut
                                     ? config.mutedColor
@@ -258,19 +300,21 @@ export function PremiumMenuBoard({
                                   textDecoration: soldOut
                                     ? "line-through"
                                     : undefined,
+                                  fontSize: bu(s.item),
                                 }}
                               >
                                 {item.name}
                               </span>
                               <span
-                                className="min-w-[1rem] flex-1 border-b border-dotted"
+                                className="flex-1 border-b border-dotted"
                                 style={{
+                                  minWidth: bu(1),
                                   borderColor: `color-mix(in srgb, ${config.mutedColor} 50%, transparent)`,
                                 }}
                                 aria-hidden
                               />
                               <span
-                                className={`shrink-0 tabular-nums ${type.item}`}
+                                className="shrink-0 tabular-nums"
                                 style={{
                                   color: soldOut
                                     ? config.mutedColor
@@ -278,6 +322,7 @@ export function PremiumMenuBoard({
                                   textDecoration: soldOut
                                     ? "line-through"
                                     : undefined,
+                                  fontSize: bu(s.item),
                                 }}
                               >
                                 ${item.price.toFixed(2)}
@@ -285,16 +330,24 @@ export function PremiumMenuBoard({
                             </div>
                             {item.description ? (
                               <p
-                                className={`mt-0.5 leading-snug ${type.description}`}
-                                style={{ color: config.mutedColor }}
+                                className="leading-snug"
+                                style={{
+                                  color: config.mutedColor,
+                                  fontSize: bu(s.description),
+                                  marginTop: bu(0.4),
+                                }}
                               >
                                 {item.description}
                               </p>
                             ) : null}
                             {soldOut && config.showSoldOut ? (
                               <p
-                                className="mt-1 text-[10px] font-semibold tracking-[0.2em] uppercase"
-                                style={{ color: config.soldOutColor }}
+                                className="font-semibold tracking-[0.2em] uppercase"
+                                style={{
+                                  color: config.soldOutColor,
+                                  fontSize: bu(s.soldOut),
+                                  marginTop: bu(0.5),
+                                }}
                               >
                                 Sold out
                               </p>
