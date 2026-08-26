@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CanvasBoard } from "@/components/display/canvas-board";
-import { AspectFitBox } from "@/components/display/display-surface";
-import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import type {
   PlaylistPlayback,
@@ -11,10 +8,8 @@ import type {
   WallInfo,
 } from "@/lib/display/types";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
-import { boardMatchesOrientation } from "@/lib/display/orientation";
 import { useDisplayMediaSrc } from "@/lib/display/use-display-media-src";
 import { resolveMediaUrl } from "@/lib/api/media";
-import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
 import type { ScreenOrientation } from "@/lib/types/schema";
 
 function VideoSlide({
@@ -101,48 +96,6 @@ function VideoSlide({
   );
 }
 
-/**
- * Canvas slides fill the whole screen when the board's shape agrees with the
- * screen orientation; a mismatched legacy board is letterboxed instead.
- */
-function CanvasSlide({
-  canvas,
-  slide,
-  orientation,
-  contentKey,
-}: {
-  canvas: DesignerCanvasJson;
-  slide: PlaylistSlide;
-  orientation: ScreenOrientation;
-  contentKey: string;
-}) {
-  const fills = boardMatchesOrientation(canvas, orientation);
-  const board = (
-    <CanvasBoard
-      canvasJson={canvas}
-      className="h-full w-full max-w-none"
-      fillViewport
-      animations={mergeDisplayConfig(slide.displayConfig).animations}
-      contentKey={contentKey}
-    />
-  );
-
-  return (
-    <div className="h-dvh w-screen overflow-hidden bg-zinc-950">
-      {fills ? (
-        board
-      ) : (
-        <AspectFitBox
-          width={typeof canvas.width === "number" ? canvas.width : 1280}
-          height={typeof canvas.height === "number" ? canvas.height : 720}
-        >
-          {board}
-        </AspectFitBox>
-      )}
-    </div>
-  );
-}
-
 function SlideView({
   slide,
   orientation,
@@ -181,65 +134,16 @@ function SlideView({
     );
   }
 
-  if (slide.contentType === "menu") {
-    const usePremium = slide.displayConfig?.layout === "premium";
-    if (usePremium) {
-      return (
-        <PremiumMenuBoard
-          items={slide.items}
-          config={mergeDisplayConfig(slide.displayConfig)}
-          orientation={orientation}
-          statusLabel={statusLabel}
-          contentKey={contentKey}
-        />
-      );
-    }
-    const canvas = slide.canvasJson as DesignerCanvasJson | null;
-    if (canvas && Array.isArray(canvas.objects) && canvas.objects.length > 0) {
-      return (
-        <CanvasSlide
-          canvas={canvas}
-          slide={slide}
-          orientation={orientation}
-          contentKey={contentKey}
-        />
-      );
-    }
+  if (slide.contentType === "menu" || slide.contentType === "template") {
     return (
-      <MenuFallbackBoard
-        title={slide.menuName ?? slide.label ?? "Menu"}
+      <PremiumMenuBoard
         items={slide.items}
+        config={mergeDisplayConfig(slide.displayConfig)}
         orientation={orientation}
-        animations={mergeDisplayConfig(slide.displayConfig).animations}
+        statusLabel={statusLabel}
         contentKey={contentKey}
       />
     );
-  }
-
-  if (slide.contentType === "template") {
-    const canvas = slide.canvasJson as DesignerCanvasJson | null;
-    const usePremium = slide.displayConfig?.layout === "premium";
-    if (usePremium) {
-      return (
-        <PremiumMenuBoard
-          items={slide.items}
-          config={mergeDisplayConfig(slide.displayConfig)}
-          orientation={orientation}
-          statusLabel={statusLabel}
-          contentKey={contentKey}
-        />
-      );
-    }
-    if (canvas && Array.isArray(canvas.objects) && canvas.objects.length > 0) {
-      return (
-        <CanvasSlide
-          canvas={canvas}
-          slide={slide}
-          orientation={orientation}
-          contentKey={contentKey}
-        />
-      );
-    }
   }
 
   return (

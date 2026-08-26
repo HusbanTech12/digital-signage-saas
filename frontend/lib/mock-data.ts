@@ -200,6 +200,7 @@ export const templates: Template[] = [
     thumbnailUrl: null,
     isGlobal: false,
     canvasJson: createPortraitPromoJson(),
+    displayConfig: { ...DEFAULT_MENU_DISPLAY_CONFIG },
     resolution: "1080x1920",
     orientation: "portrait",
     createdAt: "2026-02-10T00:00:00.000Z",

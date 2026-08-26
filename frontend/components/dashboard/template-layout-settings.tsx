@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { MenuItem } from "@/lib/types/schema";
+import type { MenuItem, ScreenOrientation } from "@/lib/types/schema";
 
 function ColorField({
   label,
@@ -57,30 +57,29 @@ export const TemplateLayoutSettings = forwardRef<
   {
     config: MenuDisplayConfig | null | undefined;
     items: MenuItem[];
+    categories: string[];
+    orientation?: ScreenOrientation;
     onPublish?: () => void;
     publishing?: boolean;
   }
 >(function TemplateLayoutSettings(
-  { config, items, onPublish, publishing },
+  { config, items, categories, orientation = "landscape", onPublish, publishing },
   ref,
 ) {
   const initial = mergeDisplayConfig(config);
   const [draft, setDraft] = useState<MenuDisplayConfig>(initial);
-  const [categoriesText, setCategoriesText] = useState(
-    initial.categories.join(", "),
-  );
   const [previewTick, setPreviewTick] = useState(0);
 
   const previewConfig = useMemo(
     () =>
       mergeDisplayConfig({
         ...draft,
-        categories: categoriesText
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
+        categories:
+          categories.length > 0
+            ? categories
+            : [...DEFAULT_MENU_DISPLAY_CONFIG.categories],
       }),
-    [draft, categoriesText],
+    [draft, categories],
   );
 
   useImperativeHandle(ref, () => ({
@@ -93,7 +92,6 @@ export const TemplateLayoutSettings = forwardRef<
       animations: { ...DEFAULT_MENU_DISPLAY_CONFIG.animations },
       categories: [...DEFAULT_MENU_DISPLAY_CONFIG.categories],
     });
-    setCategoriesText(DEFAULT_MENU_DISPLAY_CONFIG.categories.join(", "));
   }
 
   function patchAnimations(
@@ -110,10 +108,10 @@ export const TemplateLayoutSettings = forwardRef<
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold">TV layout</h2>
+          <h2 className="text-sm font-semibold">Board appearance</h2>
           <p className="text-xs text-muted-foreground">
-            Premium fixed 3-column board for TV screens. Branding, colors,
-            columns, and lightweight animations live on the template.
+            Branding, colors, and animations for the menu board. Categories and
+            items are on the Menu tab.
           </p>
         </div>
         <div className="flex gap-2">
@@ -151,15 +149,6 @@ export const TemplateLayoutSettings = forwardRef<
               onChange={(e) =>
                 setDraft((d) => ({ ...d, subtitle: e.target.value }))
               }
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="categories">Column categories (comma-separated)</Label>
-            <Input
-              id="categories"
-              value={categoriesText}
-              onChange={(e) => setCategoriesText(e.target.value)}
-              placeholder="Starters, Mains, Sweets"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -333,12 +322,19 @@ export const TemplateLayoutSettings = forwardRef<
 
         <div className="overflow-hidden rounded-xl border border-border bg-zinc-900">
           <p className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
-            Live preview (16:9 TV)
+            Live preview · {orientation === "portrait" ? "Portrait" : "Landscape"}
           </p>
-          <div className="aspect-video overflow-hidden">
+          <div
+            className={
+              orientation === "portrait"
+                ? "mx-auto aspect-[9/16] max-h-[36rem] w-full max-w-[18rem] overflow-hidden"
+                : "aspect-video overflow-hidden"
+            }
+          >
             <PremiumMenuBoard
               items={items}
               config={previewConfig}
+              orientation={orientation}
               statusLabel="Preview"
               contentKey={`preview-${previewTick}`}
             />

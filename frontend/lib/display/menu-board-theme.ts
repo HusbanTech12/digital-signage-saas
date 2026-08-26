@@ -55,6 +55,7 @@ export function mergeDisplayConfig(
   return {
     ...DEFAULT_MENU_DISPLAY_CONFIG,
     ...partial,
+    layout: "premium",
     categories:
       partial.categories?.length
         ? partial.categories

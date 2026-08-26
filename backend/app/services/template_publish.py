@@ -17,6 +17,7 @@ from app.services import playlist as playlist_service
 from app.services import screen_groups as group_service
 from app.services.audit import record_audit
 from app.utils.ids import new_id
+from app.utils.menu_board import as_premium_display_config
 from db.models import Menu, PlaylistItem, Screen, Template, User
 
 
@@ -133,7 +134,9 @@ async def publish_template_package(
     if body.canvas_json is not None:
         template.canvas_json = deepcopy(body.canvas_json)
     if body.display_config is not None:
-        template.display_config = deepcopy(body.display_config)
+        template.display_config = as_premium_display_config(
+            body.display_config if isinstance(body.display_config, dict) else None
+        )
     if body.resolution is not None:
         template.resolution = body.resolution.strip() or template.resolution
     if body.orientation is not None:

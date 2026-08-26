@@ -3,16 +3,13 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import {
-  VisualEditor,
-  type VisualEditorHandle,
-} from "@/components/designer/visual-editor";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   TemplateLayoutSettings,
   type TemplateLayoutSettingsHandle,
 } from "@/components/dashboard/template-layout-settings";
 import { OrientationToggle } from "@/components/dashboard/orientation-toggle";
+import { TemplateMenuFields } from "@/components/dashboard/template-menu-fields";
 import {
   TemplateAudioTab,
   TemplateHubTabBar,
@@ -28,7 +25,10 @@ import {
   canPublishMenus,
   filterScreensForUser,
 } from "@/lib/access";
-import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
+import {
+  DEFAULT_MENU_DISPLAY_CONFIG,
+  mergeDisplayConfig,
+} from "@/lib/display/menu-board-theme";
 import {
   nominalResolution,
   orientationHint,
@@ -48,7 +48,7 @@ export default function TemplateEditPage() {
     <Suspense
       fallback={
         <div className="mx-auto max-w-5xl p-4 text-sm text-muted-foreground">
-          Loading designer…
+          Loading template…
         </div>
       }
     >
@@ -60,12 +60,11 @@ export default function TemplateEditPage() {
 function TemplateEditPageInner() {
   const params = useParams<{ templateId: string }>();
   const searchParams = useSearchParams();
-  const menuId = searchParams.get("menuId");
+  const queryMenuId = searchParams.get("menuId");
   const { session, role } = useMockSession();
   const { templates, menus, menuItems, screens: storeScreens } = useMockStore();
   const { getApiToken } = useApiAuthToken();
 
-  const editorRef = useRef<VisualEditorHandle>(null);
   const layoutRef = useRef<TemplateLayoutSettingsHandle>(null);
 
   const [tab, setTab] = useState<TemplateHubTab>("layout");
@@ -74,6 +73,10 @@ function TemplateEditPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [orientation, setOrientation] =
     useState<ScreenOrientation>("landscape");
+  const [categories, setCategories] = useState<string[]>([
+    ...DEFAULT_MENU_DISPLAY_CONFIG.categories,
+  ]);
+  const [selectedMenuId, setSelectedMenuId] = useState(queryMenuId ?? "");
 
   const [audioPlaylists, setAudioPlaylists] = useState<AudioPlaylist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -91,12 +94,10 @@ function TemplateEditPageInner() {
   const [screenGroupId, setScreenGroupId] = useState("");
 
   const template = templates.find((t) => t.id === params.templateId);
-  const menu = menuId
-    ? menus.find(
-        (m) =>
-          m.id === menuId && m.organizationId === session.organization.id,
-      )
-    : undefined;
+  const orgMenus = useMemo(
+    () => menus.filter((m) => m.organizationId === session.organization.id),
+    [menus, session.organization.id],
+  );
 
   useEffect(() => {
     if (!template) return;
@@ -107,7 +108,21 @@ function TemplateEditPageInner() {
     setAudioMuted(template.audioMuted ?? false);
     setPlaylistId(template.playlistId ?? "");
     setSlideDuration(template.playlistItemDurationSeconds ?? 12);
+    const merged = mergeDisplayConfig(template.displayConfig);
+    setCategories(
+      merged.categories.length
+        ? [...merged.categories]
+        : [...DEFAULT_MENU_DISPLAY_CONFIG.categories],
+    );
   }, [template?.id]);
+
+  useEffect(() => {
+    if (queryMenuId) {
+      setSelectedMenuId(queryMenuId);
+      return;
+    }
+    setSelectedMenuId((current) => current || orgMenus[0]?.id || "");
+  }, [queryMenuId, orgMenus]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +146,7 @@ function TemplateEditPageInner() {
         setGroups(walls.screenGroups);
         setLiveScreens(scr);
       } catch {
-        /* library lists are optional for the canvas */
+        /* library lists are optional for the editor */
       }
     })();
     return () => {
@@ -141,35 +156,25 @@ function TemplateEditPageInner() {
 
   const items = useMemo(
     () =>
-      menu
+      selectedMenuId
         ? menuItems
-            .filter((i) => i.menuId === menu.id)
+            .filter((i) => i.menuId === selectedMenuId)
             .sort((a, b) => a.sortOrder - b.sortOrder)
-        : menuItems
-            .filter((i) => i.organizationId === session.organization.id)
-            .slice(0, 12),
-    [menu, menuItems, session.organization.id],
-  );
-
-  const orgTemplates = useMemo(
-    () =>
-      templates.filter(
-        (t) => !t.isGlobal && t.organizationId === session.organization.id,
-      ),
-    [templates, session.organization.id],
+        : [],
+    [selectedMenuId, menuItems],
   );
 
   const visibleScreens = filterScreensForUser(
     liveScreens.length ? liveScreens : storeScreens,
     session.user,
   ).filter((s) => s.locationId && s.status !== "pairing");
-  const isPremium = template?.displayConfig?.layout === "premium";
   const canPublish = canPublishMenus(role);
+  const selectedMenu = orgMenus.find((m) => m.id === selectedMenuId);
 
   if (!canEditDesigner(role)) {
     return (
       <div className="mx-auto max-w-5xl">
-        <PageHeader title="Designer" description="Access denied." />
+        <PageHeader title="Templates" description="Access denied." />
       </div>
     );
   }
@@ -190,7 +195,7 @@ function TemplateEditPageInner() {
       <div className="mx-auto max-w-5xl space-y-4">
         <PageHeader
           title="Read-only global template"
-          description="Duplicate this template from the gallery to customize the TV layout."
+          description="Duplicate this template from the gallery to customize the board."
         />
         <Button variant="outline" render={<Link href="/dashboard/templates" />}>
           Back to gallery
@@ -204,8 +209,7 @@ function TemplateEditPageInner() {
     setError(null);
     setStatus(null);
     if (!selectedScreens.length && !screenGroupId) {
-      if (isPremium) setTab("target");
-      else editorRef.current?.openPanel("target");
+      setTab("target");
       setError("Select at least one screen or a video wall, then Publish.");
       return;
     }
@@ -213,16 +217,16 @@ function TemplateEditPageInner() {
     try {
       const token = await getApiToken();
       if (!token) throw new Error("Missing API auth token");
-      const canvasJson = !isPremium
-        ? editorRef.current?.getJson() ?? undefined
-        : undefined;
-      const displayConfig = isPremium
-        ? layoutRef.current?.getConfig()
-        : undefined;
+      const displayConfig = mergeDisplayConfig({
+        ...layoutRef.current?.getConfig(),
+        categories:
+          categories.length > 0
+            ? categories
+            : [...DEFAULT_MENU_DISPLAY_CONFIG.categories],
+      });
       const result = await publishTemplatePackage(
         template.id,
         {
-          canvasJson,
           displayConfig,
           resolution: nominalResolution(orientation),
           orientation,
@@ -236,7 +240,7 @@ function TemplateEditPageInner() {
             playlistId && slideSortOrder !== "" ? slideSortOrder : null,
           screenIds: selectedScreens,
           screenGroupId: screenGroupId || null,
-          menuId: menu?.id ?? null,
+          menuId: selectedMenuId || null,
           changeSummary: `Published ${template.name} from template editor`,
         },
         token,
@@ -276,118 +280,14 @@ function TemplateEditPageInner() {
     );
   }
 
-  const screenSetupPanel = (
-    <div className="space-y-3 rounded-xl border border-border p-4">
-      <div>
-        <h2 className="text-sm font-semibold">Screen shape</h2>
-        <p className="text-xs text-muted-foreground">
-          No pixel size needed — the layout stretches to fill whatever
-          resolution the TV reports. Included in Publish with the rest of the
-          package.
-        </p>
-      </div>
-      <OrientationToggle
-        value={orientation}
-        onChange={setOrientation}
-        hint={orientationHint(orientation)}
-      />
-    </div>
-  );
-
-  const audioPanel = (
-    <TemplateAudioTab
-      audioPlaylists={audioPlaylists}
-      audioPlaylistId={audioPlaylistId}
-      audioVolume={audioVolume}
-      audioLoop={audioLoop}
-      audioMuted={audioMuted}
-      onChange={(patch) => {
-        if (patch.audioPlaylistId !== undefined) {
-          setAudioPlaylistId(patch.audioPlaylistId);
-        }
-        if (patch.audioVolume !== undefined) setAudioVolume(patch.audioVolume);
-        if (patch.audioLoop !== undefined) setAudioLoop(patch.audioLoop);
-        if (patch.audioMuted !== undefined) setAudioMuted(patch.audioMuted);
-      }}
-    />
-  );
-
-  const playlistPanel = (
-    <TemplatePlaylistTab
-      playlists={playlists}
-      playlistId={playlistId}
-      durationSeconds={slideDuration}
-      sortOrder={slideSortOrder}
-      templateId={template.id}
-      onChange={(patch) => {
-        if (patch.playlistId !== undefined) setPlaylistId(patch.playlistId);
-        if (patch.durationSeconds !== undefined) {
-          setSlideDuration(patch.durationSeconds);
-        }
-        if (patch.sortOrder !== undefined) setSlideSortOrder(patch.sortOrder);
-      }}
-    />
-  );
-
-  const targetPanel = (
-    <TemplateTargetTab
-      screens={visibleScreens}
-      groups={groups}
-      selectedScreenIds={selectedScreens}
-      screenGroupId={screenGroupId}
-      templateOrientation={orientation}
-      onToggleScreen={toggleScreen}
-      onGroupChange={handleGroupChange}
-    />
-  );
-
-  if (!isPremium) {
-    return (
-      <div className="-m-4 md:-m-6">
-        <VisualEditor
-          key={template.id}
-          ref={editorRef}
-          templateId={template.id}
-          templateName={
-            menu ? `${template.name} · ${menu.name}` : template.name
-          }
-          initialJson={template.canvasJson as DesignerCanvasJson}
-          orientation={orientation}
-          onOrientationChange={setOrientation}
-          menuItems={items}
-          templates={orgTemplates}
-          publishing={publishing}
-          statusMessage={status}
-          errorMessage={error}
-          onPublish={canPublish ? () => void handlePublish() : undefined}
-          hubPanels={{
-            setup: screenSetupPanel,
-            audio: audioPanel,
-            playlist: playlistPanel,
-            target: targetPanel,
-          }}
-          headerActions={
-            <Button
-              variant="outline"
-              size="sm"
-              render={<Link href="/dashboard/templates" />}
-            >
-              Gallery
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
         title={`Template · ${template.name}`}
         description={
-          menu
-            ? `Publishing hub for menu “${menu.name}”. Layout, audio, rotation, and screens go out together.`
-            : "Publishing hub — layout, background audio, playlist rotation, and screen targets in one Publish."
+          selectedMenu
+            ? `Fieldwise menu board for “${selectedMenu.name}”. Appearance, categories, items, audio, and screens publish together.`
+            : "Fieldwise menu board — appearance, categories, items, audio, and screen targets in one Publish."
         }
         actions={
           <>
@@ -424,20 +324,91 @@ function TemplateEditPageInner() {
 
       {tab === "layout" ? (
         <>
-          {screenSetupPanel}
+          <div className="space-y-3 rounded-xl border border-border p-4">
+            <div>
+              <h2 className="text-sm font-semibold">Screen shape</h2>
+              <p className="text-xs text-muted-foreground">
+                No pixel size needed — the layout stretches to fill whatever
+                resolution the TV reports.
+              </p>
+            </div>
+            <OrientationToggle
+              value={orientation}
+              onChange={setOrientation}
+              hint={orientationHint(orientation)}
+            />
+          </div>
           <TemplateLayoutSettings
             ref={layoutRef}
             config={template.displayConfig}
             items={items}
+            categories={categories}
+            orientation={orientation}
             onPublish={() => void handlePublish()}
             publishing={publishing}
           />
         </>
       ) : null}
 
-      {tab === "audio" ? audioPanel : null}
-      {tab === "playlist" ? playlistPanel : null}
-      {tab === "target" ? targetPanel : null}
+      {tab === "menu" ? (
+        <TemplateMenuFields
+          organizationId={session.organization.id}
+          menus={orgMenus}
+          selectedMenuId={selectedMenuId}
+          categories={categories}
+          items={items}
+          getApiToken={getApiToken}
+          onMenuChange={setSelectedMenuId}
+          onCategoriesChange={setCategories}
+        />
+      ) : null}
+
+      {tab === "audio" ? (
+        <TemplateAudioTab
+          audioPlaylists={audioPlaylists}
+          audioPlaylistId={audioPlaylistId}
+          audioVolume={audioVolume}
+          audioLoop={audioLoop}
+          audioMuted={audioMuted}
+          onChange={(patch) => {
+            if (patch.audioPlaylistId !== undefined) {
+              setAudioPlaylistId(patch.audioPlaylistId);
+            }
+            if (patch.audioVolume !== undefined) setAudioVolume(patch.audioVolume);
+            if (patch.audioLoop !== undefined) setAudioLoop(patch.audioLoop);
+            if (patch.audioMuted !== undefined) setAudioMuted(patch.audioMuted);
+          }}
+        />
+      ) : null}
+
+      {tab === "playlist" ? (
+        <TemplatePlaylistTab
+          playlists={playlists}
+          playlistId={playlistId}
+          durationSeconds={slideDuration}
+          sortOrder={slideSortOrder}
+          templateId={template.id}
+          onChange={(patch) => {
+            if (patch.playlistId !== undefined) setPlaylistId(patch.playlistId);
+            if (patch.durationSeconds !== undefined) {
+              setSlideDuration(patch.durationSeconds);
+            }
+            if (patch.sortOrder !== undefined) setSlideSortOrder(patch.sortOrder);
+          }}
+        />
+      ) : null}
+
+      {tab === "target" ? (
+        <TemplateTargetTab
+          screens={visibleScreens}
+          groups={groups}
+          selectedScreenIds={selectedScreens}
+          screenGroupId={screenGroupId}
+          templateOrientation={orientation}
+          onToggleScreen={toggleScreen}
+          onGroupChange={handleGroupChange}
+        />
+      ) : null}
     </div>
   );
 }

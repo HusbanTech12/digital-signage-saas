@@ -3,13 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BackgroundAudioPlayer } from "@/components/display/background-audio-player";
-import { CanvasBoard } from "@/components/display/canvas-board";
-import { AspectFitBox } from "@/components/display/display-surface";
-import { MenuFallbackBoard } from "@/components/display/menu-fallback-board";
 import { PlaylistPlayer } from "@/components/display/playlist-player";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import { mergeDisplayConfig } from "@/lib/display/menu-board-theme";
-import { boardMatchesOrientation } from "@/lib/display/orientation";
 import { useLiveApi } from "@/lib/api/config";
 import {
   readDisplayCache,
@@ -270,17 +266,7 @@ export function KioskPlayer({
     );
   }
 
-  const usePremium = payload.displayConfig?.layout === "premium";
-  const displayConfig = usePremium
-    ? mergeDisplayConfig(payload.displayConfig)
-    : payload.displayConfig
-      ? mergeDisplayConfig(payload.displayConfig)
-      : null;
-  const showCanvas =
-    !usePremium &&
-    payload.canvasJson &&
-    Array.isArray(payload.canvasJson.objects) &&
-    payload.canvasJson.objects.length > 0;
+  const displayConfig = mergeDisplayConfig(payload.displayConfig);
 
   const contentKey = [
     payload.menuId ?? "",
@@ -298,9 +284,6 @@ export function KioskPlayer({
         ? "Cached"
         : undefined;
 
-  const animations =
-    displayConfig?.animations ?? mergeDisplayConfig(null).animations;
-
   const playlist =
     payload.playlist &&
     Array.isArray(payload.playlist.slides) &&
@@ -309,31 +292,6 @@ export function KioskPlayer({
       : null;
 
   const wall = payload.wall ?? null;
-  // Tiled crop only makes sense for spanning canvas layouts.
-  // Premium / fallback menu boards always fill the physical screen.
-  const tiledCanvas =
-    Boolean(wall) &&
-    wall!.contentMode === "tiled" &&
-    wall!.rows > 0 &&
-    wall!.cols > 0 &&
-    Boolean(showCanvas) &&
-    !playlist;
-
-  // Stretch to fill only when the board's own shape agrees with the screen.
-  // Legacy layouts saved in the other orientation stay letterboxed.
-  const canvasFills =
-    tiledCanvas ||
-    boardMatchesOrientation(payload.canvasJson, payload.orientation);
-  const canvasBoardSize = {
-    width:
-      typeof payload.canvasJson?.width === "number"
-        ? payload.canvasJson.width
-        : 1280,
-    height:
-      typeof payload.canvasJson?.height === "number"
-        ? payload.canvasJson.height
-        : 720,
-  };
 
   const board = playlist ? (
     <PlaylistPlayer
@@ -342,45 +300,12 @@ export function KioskPlayer({
       statusLabel={statusLabel}
       wall={wall}
     />
-  ) : showCanvas && payload.canvasJson ? (
-    <div className={tiledCanvas ? "h-full w-full" : "h-dvh w-screen overflow-hidden"}>
-      {canvasFills ? (
-        <CanvasBoard
-          canvasJson={payload.canvasJson}
-          className="h-full w-full max-w-none"
-          fillViewport
-          animations={animations}
-          contentKey={contentKey}
-        />
-      ) : (
-        <AspectFitBox
-          width={canvasBoardSize.width}
-          height={canvasBoardSize.height}
-        >
-          <CanvasBoard
-            canvasJson={payload.canvasJson}
-            className="h-full w-full max-w-none"
-            fillViewport
-            animations={animations}
-            contentKey={contentKey}
-          />
-        </AspectFitBox>
-      )}
-    </div>
-  ) : usePremium && displayConfig ? (
+  ) : (
     <PremiumMenuBoard
       items={payload.items}
       config={displayConfig}
       orientation={payload.orientation}
       statusLabel={statusLabel}
-      contentKey={contentKey}
-    />
-  ) : (
-    <MenuFallbackBoard
-      title={payload.menuName ?? payload.screenName}
-      items={payload.items}
-      orientation={payload.orientation}
-      animations={animations}
       contentKey={contentKey}
     />
   );
@@ -399,53 +324,16 @@ export function KioskPlayer({
         </div>
       )}
 
-      {tiledCanvas && wall ? (
-        <div className="relative h-dvh w-screen overflow-hidden">
-          <div
-            className="absolute top-0 left-0"
-            style={{
-              width: `${wall.cols * 100}vw`,
-              height: `${wall.rows * 100}vh`,
-              transform: `translate(-${wall.col * 100}vw, -${wall.row * 100}vh)${
-                wall.bezelCompensationPct && wall.bezelCompensationPct > 0
-                  ? ` scale(${1 + wall.bezelCompensationPct / 100})`
-                  : ""
-              }`,
-              transformOrigin: "top left",
-            }}
-          >
-            {board}
-          </div>
-          <div className="pointer-events-none absolute top-3 left-3 z-20 font-mono text-[10px] tracking-wide text-zinc-500 uppercase">
-            Wall {wall.groupName} · {wall.row + 1},{wall.col + 1}
-          </div>
+      {board}
+
+      {wall ? (
+        <div className="pointer-events-none absolute top-3 left-3 z-20 font-mono text-[10px] tracking-wide text-zinc-500 uppercase">
+          Wall {wall.groupName} · shared · {wall.row + 1},{wall.col + 1}
         </div>
-      ) : (
-        <>
-          {board}
-          {wall ? (
-            <div className="pointer-events-none absolute top-3 left-3 z-20 font-mono text-[10px] tracking-wide text-zinc-500 uppercase">
-              Wall {wall.groupName} · shared · {wall.row + 1},{wall.col + 1}
-            </div>
-          ) : null}
-        </>
-      )}
+      ) : null}
 
       {payload.audio && payload.audio.tracks.length > 0 ? (
         <BackgroundAudioPlayer audio={payload.audio} />
-      ) : null}
-
-      {!playlist && showCanvas && payload.items.length > 0 ? (
-        <div className="pointer-events-none absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent px-6 pt-16 pb-5">
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-zinc-200">
-            {payload.items.slice(0, 8).map((item) => (
-              <span key={item.id} className="tabular-nums">
-                {item.name}{" "}
-                <span className="text-zinc-400">${item.price.toFixed(2)}</span>
-              </span>
-            ))}
-          </div>
-        </div>
       ) : null}
 
       <StatusChip

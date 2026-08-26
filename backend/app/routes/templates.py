@@ -22,6 +22,7 @@ from app.services.display_content import build_display_payload
 from app.schemas.display import RealtimeEvent
 from app.services.realtime import get_realtime_hub
 from app.utils.ids import new_id
+from app.utils.menu_board import as_premium_display_config, default_display_config
 from app.utils.orientation import board_size, nominal_resolution
 from db.models import Template, User
 from db.session import get_db
@@ -113,7 +114,7 @@ async def create_template(
         thumbnail_url=None,
         is_global=False,
         canvas_json=_blank_canvas(orientation),
-        display_config={},
+        display_config=default_display_config(),
         resolution=resolution,
         orientation=orientation,
         created_at=now,
@@ -147,7 +148,9 @@ async def duplicate_template(
         thumbnail_url=None,
         is_global=False,
         canvas_json=deepcopy(source.canvas_json or {}),
-        display_config=deepcopy(source.display_config or {}),
+        display_config=as_premium_display_config(
+            source.display_config if isinstance(source.display_config, dict) else None
+        ),
         resolution=source.resolution or "1920x1080",
         orientation=source.orientation or "landscape",
         audio_playlist_id=source.audio_playlist_id,

@@ -101,8 +101,8 @@ function TemplatesPageInner() {
         title="Templates"
         description={
           menuId
-            ? "Pick a layout for your LCD type, then publish from the menu page."
-            : "Gallery of layouts — each template targets an LCD / screen type."
+            ? "Pick a menu board, then edit categories and items in the template."
+            : "Fieldwise menu boards — branding, categories, and items, published as a package."
         }
         actions={
           canManageTemplates(role) ? (
@@ -119,10 +119,7 @@ function TemplatesPageInner() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {gallery.map((template) => {
-          const isPremium = template.displayConfig?.layout === "premium";
-          const previewConfig = isPremium
-            ? mergeDisplayConfig(template.displayConfig)
-            : null;
+          const previewConfig = mergeDisplayConfig(template.displayConfig);
           const isPortrait = template.orientation === "portrait";
 
           return (
@@ -135,20 +132,14 @@ function TemplatesPageInner() {
                   isPortrait ? "aspect-[9/16] max-h-56 mx-auto w-full max-w-[10rem]" : "aspect-video"
                 }`}
               >
-                {isPremium && previewConfig ? (
-                  <div className="pointer-events-none h-full w-full">
-                    <PremiumMenuBoard
-                      items={previewItems}
-                      config={previewConfig}
-                      orientation={isPortrait ? "portrait" : "landscape"}
-                      statusLabel="Preview"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-xs text-zinc-400">
-                    {template.isGlobal ? "Global library" : "Canvas layout"}
-                  </div>
-                )}
+                <div className="pointer-events-none h-full w-full">
+                  <PremiumMenuBoard
+                    items={previewItems}
+                    config={previewConfig}
+                    orientation={isPortrait ? "portrait" : "landscape"}
+                    statusLabel="Preview"
+                  />
+                </div>
               </div>
               <h2 className="mt-3 font-semibold tracking-tight">
                 {template.name}

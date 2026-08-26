@@ -13,10 +13,11 @@ import type {
   ScreenOrientation,
 } from "@/lib/types/schema";
 
-export type TemplateHubTab = "layout" | "audio" | "playlist" | "target";
+export type TemplateHubTab = "layout" | "menu" | "audio" | "playlist" | "target";
 
 const TABS: { id: TemplateHubTab; label: string }[] = [
   { id: "layout", label: "Layout" },
+  { id: "menu", label: "Menu" },
   { id: "audio", label: "Audio" },
   { id: "playlist", label: "Playlist" },
   { id: "target", label: "Target" },
