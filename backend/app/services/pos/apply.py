@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import socket
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -11,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from app.services.display_content import build_display_payload
 from app.services.pos.base import get_adapter
 from app.services.pos.events import (
     AvailabilityUpdateEvent,
@@ -20,7 +20,7 @@ from app.services.pos.events import (
 )
 from app.services.realtime import get_realtime_hub
 from app.schemas.display import RealtimeEvent
-from app.services.theme_scheduler import _build_display_payload_sync, _publish_events_redis
+from app.services.theme_scheduler import _publish_events_redis
 from app.utils.ids import new_id
 from db.models import Menu, MenuItem, PosIntegration, PosSyncEvent, Screen
 
@@ -37,6 +37,26 @@ def _item_map(integration: PosIntegration) -> dict[str, str]:
     if not isinstance(raw, dict):
         return {}
     return {str(k): str(v) for k, v in raw.items()}
+
+
+def _screen_refresh_events(screens: list[Screen]) -> list[dict[str, Any]]:
+    """Ask kiosks to refetch instead of rebuilding full display payloads inline."""
+    now = _utcnow()
+    events: list[dict[str, Any]] = []
+    for screen in screens:
+        command_id = new_id("cmd")
+        screen.pending_command = "refresh"
+        screen.pending_command_id = command_id
+        screen.pending_command_at = now
+        events.append(
+            {
+                "type": "device.refresh",
+                "screenId": screen.id,
+                "payload": {"command": "refresh", "commandId": command_id},
+                "ts": now.isoformat(),
+            }
+        )
+    return events
 
 
 def enqueue_pos_raw_event(
@@ -105,16 +125,20 @@ def process_pos_sync_event(db: Session, event_id: str) -> dict:
         raw = event.payload.get("raw") if isinstance(event.payload, dict) else {}
         if not isinstance(raw, dict):
             raw = {}
-        normalized = adapter.parse_webhook(raw)
+        creds = integration.credentials if isinstance(integration.credentials, dict) else {}
+        config = integration.config if isinstance(integration.config, dict) else {}
+        normalized = adapter.resolve_events_sync(raw, creds, config)
         item_map = _item_map(integration)
         touched_menu_ids: set[str] = set()
         applied: list[dict] = []
+        skipped: list[str] = []
 
         for update in normalized:
             sku = update.external_sku
             menu_item_id = item_map.get(sku) or update.menu_item_id
             if not menu_item_id:
-                raise ValueError(f"No itemMap entry for SKU {sku}")
+                skipped.append(sku)
+                continue
 
             item = db.get(MenuItem, menu_item_id)
             if item is None or item.organization_id != integration.organization_id:
@@ -134,27 +158,24 @@ def process_pos_sync_event(db: Session, event_id: str) -> dict:
             touched_menu_ids.add(item.menu_id)
             applied.append(event_to_dict(update))
 
-        realtime_events: list[dict] = []
-        if touched_menu_ids:
-            screens = db.scalars(
+        if not applied:
+            raise ValueError(
+                f"No itemMap entry for SKU {skipped[0]}"
+                if skipped
+                else "No updates applied"
+            )
+
+        realtime_events = _screen_refresh_events(
+            db.scalars(
                 select(Screen).where(
                     Screen.organization_id == integration.organization_id,
-                    Screen.active_menu_id.in_(touched_menu_ids),
+                    Screen.active_menu_id.in_(list(touched_menu_ids)),
                     Screen.status != "pairing",
                 )
             ).all()
-            for screen in screens:
-                payload = _build_display_payload_sync(db, screen)
-                if payload is None:
-                    continue
-                realtime_events.append(
-                    {
-                        "type": "menu.published",
-                        "screenId": screen.id,
-                        "payload": payload,
-                        "ts": _utcnow().isoformat(),
-                    }
-                )
+            if touched_menu_ids
+            else []
+        )
 
         event.status = "applied"
         event.error_message = None
@@ -167,7 +188,11 @@ def process_pos_sync_event(db: Session, event_id: str) -> dict:
             integration.status = "active"
         db.commit()
 
-        via_redis = _publish_events_redis(realtime_events) if realtime_events else True
+        via_redis = (
+            _publish_events_redis(realtime_events)
+            if realtime_events and _broker_reachable()
+            else False
+        )
         return {
             "ok": True,
             "applied": len(applied),
@@ -204,16 +229,20 @@ async def process_pos_sync_event_async(db: AsyncSession, event_id: str) -> dict:
         raw = event.payload.get("raw") if isinstance(event.payload, dict) else {}
         if not isinstance(raw, dict):
             raw = {}
-        normalized = adapter.parse_webhook(raw)
+        creds = integration.credentials if isinstance(integration.credentials, dict) else {}
+        config = integration.config if isinstance(integration.config, dict) else {}
+        normalized = await adapter.resolve_events(raw, creds, config)
         item_map = _item_map(integration)
         touched_menu_ids: set[str] = set()
         applied: list[dict] = []
+        skipped: list[str] = []
 
         for update in normalized:
             sku = update.external_sku
             menu_item_id = item_map.get(sku) or update.menu_item_id
             if not menu_item_id:
-                raise ValueError(f"No itemMap entry for SKU {sku}")
+                skipped.append(sku)
+                continue
 
             item = await db.get(MenuItem, menu_item_id)
             if item is None or item.organization_id != integration.organization_id:
@@ -233,6 +262,13 @@ async def process_pos_sync_event_async(db: AsyncSession, event_id: str) -> dict:
             touched_menu_ids.add(item.menu_id)
             applied.append(event_to_dict(update))
 
+        if not applied:
+            raise ValueError(
+                f"No itemMap entry for SKU {skipped[0]}"
+                if skipped
+                else "No updates applied"
+            )
+
         realtime_events: list[dict] = []
         if touched_menu_ids:
             result = await db.execute(
@@ -242,18 +278,7 @@ async def process_pos_sync_event_async(db: AsyncSession, event_id: str) -> dict:
                     Screen.status != "pairing",
                 )
             )
-            for screen in result.scalars().all():
-                payload = await build_display_payload(db, screen)
-                if payload is None:
-                    continue
-                realtime_events.append(
-                    {
-                        "type": "menu.published",
-                        "screenId": screen.id,
-                        "payload": payload.model_dump(by_alias=True, mode="json"),
-                        "ts": _utcnow().isoformat(),
-                    }
-                )
+            realtime_events = _screen_refresh_events(list(result.scalars().all()))
 
         event.status = "applied"
         event.error_message = None
@@ -266,7 +291,9 @@ async def process_pos_sync_event_async(db: AsyncSession, event_id: str) -> dict:
             integration.status = "active"
         await db.commit()
 
-        via_redis = _publish_events_redis(realtime_events) if realtime_events else True
+        via_redis = False
+        if realtime_events and _broker_reachable():
+            via_redis = _publish_events_redis(realtime_events)
         if realtime_events and not via_redis:
             hub = get_realtime_hub()
             for raw_event in realtime_events:
@@ -290,8 +317,26 @@ async def process_pos_sync_event_async(db: AsyncSession, event_id: str) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+def _broker_reachable(timeout: float = 0.4) -> bool:
+    """Avoid hanging on Celery .delay() when Redis is down (local uvicorn)."""
+    from urllib.parse import urlparse
+
+    from app.config import get_settings
+
+    parsed = urlparse(get_settings().redis_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 6379
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def dispatch_pos_event(event_id: str) -> dict[str, Any]:
     """Try Celery; caller should fall back to async inline on failure."""
+    if not _broker_reachable():
+        return {"queued": False, "eventId": event_id, "celeryError": "redis unreachable"}
     try:
         from workers.tasks import process_pos_webhook_task
 

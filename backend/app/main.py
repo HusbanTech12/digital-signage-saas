@@ -20,6 +20,7 @@ from app.routes import (
     pairing,
     playlists,
     pos,
+    qr_codes,
     screen_groups,
     screens,
     team,
@@ -135,6 +136,9 @@ def create_app() -> FastAPI:
     app.include_router(playlists.router)
     app.include_router(audio_playlists.router)
     app.include_router(content_versions.router)
+    app.include_router(qr_codes.router)
+    app.include_router(qr_codes.public_router)
+    app.include_router(qr_codes.redirect_router)
     app.include_router(dev.router)
 
     return app

@@ -54,6 +54,10 @@ AUDIO_CREATE = "audio.create"
 AUDIO_UPDATE = "audio.update"
 AUDIO_DELETE = "audio.delete"
 AUDIO_PUBLISH = "audio.publish"
+QR_READ = "qr.read"
+QR_CREATE = "qr.create"
+QR_UPDATE = "qr.update"
+QR_DELETE = "qr.delete"
 SCHEDULES_READ = "schedules.read"
 SCHEDULES_CREATE = "schedules.create"
 SCHEDULES_UPDATE = "schedules.update"
@@ -104,6 +108,10 @@ ALL_PERMISSIONS: frozenset[str] = frozenset(
         AUDIO_UPDATE,
         AUDIO_DELETE,
         AUDIO_PUBLISH,
+        QR_READ,
+        QR_CREATE,
+        QR_UPDATE,
+        QR_DELETE,
         SCHEDULES_READ,
         SCHEDULES_CREATE,
         SCHEDULES_UPDATE,
@@ -140,6 +148,10 @@ _CONTENT_PERMS = frozenset(
         AUDIO_UPDATE,
         AUDIO_DELETE,
         AUDIO_PUBLISH,
+        QR_READ,
+        QR_CREATE,
+        QR_UPDATE,
+        QR_DELETE,
         SCHEDULES_READ,
         SCHEDULES_CREATE,
         SCHEDULES_UPDATE,
@@ -184,6 +196,10 @@ _LOCATION_MANAGER_PERMS = frozenset(
         AUDIO_UPDATE,
         AUDIO_DELETE,
         AUDIO_PUBLISH,
+        QR_READ,
+        QR_CREATE,
+        QR_UPDATE,
+        QR_DELETE,
         SCHEDULES_READ,
         SCHEDULES_CREATE,
         SCHEDULES_UPDATE,
@@ -204,6 +220,7 @@ _VIEWER_PERMS = frozenset(
         MEDIA_READ,
         PLAYLISTS_READ,
         AUDIO_READ,
+        QR_READ,
         SCHEDULES_READ,
         POS_READ,
         ANALYTICS_READ,

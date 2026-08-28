@@ -318,7 +318,7 @@ export function RemoteControlSection() {
     >
       <SectionHeading
         title="Change prices where the decision happens"
-        description="Update from the floor or sync from the POS — the board follows."
+        description="Update from the floor or the back office — the board follows."
       />
       <div className="mx-auto mt-12 grid max-w-5xl gap-8 md:grid-cols-2">
         <div className="rounded-xl border border-[var(--mkt-line)] bg-[var(--mkt-bg-elevated)] p-6">
@@ -340,15 +340,14 @@ export function RemoteControlSection() {
         </div>
         <div className="rounded-xl border border-[var(--mkt-line)] bg-[var(--mkt-bg-elevated)] p-6">
           <RefreshCw className="size-6 text-[var(--mkt-warm)]" />
-          <h3 className="font-display mt-4 text-2xl">POS-connected prices</h3>
+          <h3 className="font-display mt-4 text-2xl">Live board updates</h3>
           <p className="mt-3 text-sm text-[var(--mkt-muted)]">
-            Adapter-based integrations normalize price and availability events
-            into your menu items so boards stay honest during 86s and happy
-            hours.
+            Change a price or 86 an item in the dashboard and paired screens
+            pick it up — no store visit, no USB stick.
           </p>
           <div className="mt-6 aspect-video rounded-xl border border-[var(--mkt-line)] bg-[#0a0f0c] p-4">
             <p className="text-xs tracking-widest text-[var(--mkt-muted)] uppercase">
-              Sync event
+              Published
             </p>
             <p className="mt-3 font-mono text-sm text-[var(--mkt-accent)]">
               Harbor Latte → $4.75

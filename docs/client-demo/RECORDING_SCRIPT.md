@@ -24,7 +24,7 @@ Open the slide deck first, then the live app. Record with **Loom**, **OBS**, or 
 |------|-------|-------------------------------|
 | 0:00 | 1 Title | “Hi — quick progress update on the Digital Menu Board SaaS. This is a multi-tenant platform to design menus and push them to in-store screens from one dashboard.” |
 | 0:25 | 2 Product | “Four surfaces: marketing site, operator dashboard, visual menu designer, and the kiosk display with pairing.” |
-| 0:50 | 3 Progress | “We’re at roughly 65–70% of MVP. Frontend, backend foundation, and live APIs for organizations, locations, screens, pairing, menus, and templates are done. Next is realtime sync, themes, POS, and deploy.” |
+| 0:50 | 3 Progress | “We’re at roughly 65–70% of MVP. Frontend, backend foundation, and live APIs for organizations, locations, screens, pairing, menus, and templates are done. Next is realtime sync, themes, and deploy.” |
 | 1:20 | 4 Walkthrough | “I’ll now walk the live product so you can see what already works.” |
 
 *(Optional: skip architecture slide during video; keep for Q&A.)*
@@ -65,7 +65,7 @@ Open the slide deck first, then the live app. Record with **Loom**, **OBS**, or 
 Back to slides → Remaining work + Ready for feedback.
 
 **Say:**  
-“What’s left for MVP: WebSocket push under three seconds, theme scheduling, first POS integration, and staging deploy. AI menu assist and PWA are post-MVP. Happy to take feedback on POS choice, hosting, and template priorities.”
+“What’s left for MVP: WebSocket push under three seconds, theme scheduling, and staging deploy. AI menu assist and PWA are post-MVP. Happy to take feedback on hosting and template priorities.”
 
 ---
 
@@ -73,7 +73,7 @@ Back to slides → Remaining work + Ready for feedback.
 
 - Pehle slides se story batao, phir app dikhao — client confuse nahi hoga.
 - “Mock” mat bolo jab live API chal rahi ho; bolo “live backend connected.”
-- Jo abhi nahi hai (WebSocket instant update, POS, production URL) clearly “next milestone” keh do — overpromise mat karo.
+- Jo abhi nahi hai (WebSocket instant update, production URL) clearly “next milestone” keh do — overpromise mat karo.
 - Agar banner aaye “API sync failed” to pehle seed + onboard fix karo, phir record karo.
 - Secret keys / `.env` screen pe mat dikhana.
 

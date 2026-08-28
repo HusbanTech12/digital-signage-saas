@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = ""
 
+    # Clover OAuth + webhooks (sandbox by default)
+    clover_app_id: str = ""
+    clover_app_secret: str = ""
+    clover_env: str = "sandbox"
+    clover_region: str = "na"
+    clover_webhook_auth: str = ""
+
+    # Public origin of this API — encoded into tracked QR codes (/q/<code>)
+    public_api_url: str = "http://localhost:8000"
+
     # Media library (S3-compatible; falls back to local disk when unset)
     media_local_root: str = "uploads"
     s3_bucket: str = ""
@@ -55,6 +65,14 @@ class Settings(BaseSettings):
     # Disabled automatically on Vercel serverless (no long-lived process).
     inline_scheduler: bool = True
     inline_scheduler_interval_seconds: int = 30
+
+    @property
+    def public_api_origin(self) -> str:
+        return (self.public_api_url or "http://localhost:8000").rstrip("/")
+
+    @property
+    def public_frontend_origin(self) -> str:
+        return (self.frontend_url or "http://localhost:3000").rstrip("/")
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -33,8 +33,8 @@ export function orientationOfBoard(
 }
 
 /**
- * Nominal resolution stored alongside orientation so existing records, POS
- * exports, and device reports keep a sensible value. Layout never reads it.
+ * Nominal resolution stored alongside orientation so existing records and
+ * device reports keep a sensible value. Layout never reads it.
  */
 export function nominalResolution(orientation: ScreenOrientation): string {
   return orientation === "portrait" ? "1080x1920" : "1920x1080";

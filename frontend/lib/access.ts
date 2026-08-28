@@ -99,6 +99,17 @@ export function canPublishAudio(role: Role) {
   return hasPermission(role, PERMISSIONS.AUDIO_PUBLISH);
 }
 
+export function canManageQrCodes(role: Role) {
+  return (
+    hasPermission(role, PERMISSIONS.QR_CREATE) ||
+    hasPermission(role, PERMISSIONS.QR_UPDATE)
+  );
+}
+
+export function canDeleteQrCodes(role: Role) {
+  return hasPermission(role, PERMISSIONS.QR_DELETE);
+}
+
 /** Open / edit designer canvas (includes Location Manager for publish flow). */
 export function canEditDesigner(role: Role) {
   return canManageMenus(role);

@@ -4,7 +4,7 @@
 
 A multi-tenant SaaS platform that turns any TV into a smart, remotely-managed digital menu board / signage display for restaurants, cafes, and retail businesses. Admins manage menus, prices, promotions, and screen content from a web dashboard; screens run a lightweight browser-based display client (no native TV app required).
 
-**Core value proposition:** POS-connected, real-time menu updates, drag-and-drop menu designer, multi-location/multi-screen management, theme scheduling (time-of-day and seasonal), at a fraction of typical signage vendor cost.
+**Core value proposition:** Real-time menu updates, drag-and-drop menu designer, multi-location/multi-screen management, theme scheduling (time-of-day and seasonal), at a fraction of typical signage vendor cost.
 
 **Reference/inspiration:** Nento (nento.com) — feature parity target, not a clone. Positioning should differentiate on pricing simplicity and web-native architecture.
 
@@ -16,12 +16,12 @@ A multi-tenant SaaS platform that turns any TV into a smart, remotely-managed di
 |---|---|---|
 | Frontend (dashboard + designer) | Next.js (App Router) | Admin panel, menu designer, auth flows |
 | Display client (screen player) | Next.js route, rendered in Chromium kiosk mode | No native Android/Tizen/webOS/Roku app in v1 |
-| Backend API | FastAPI | Business logic, POS webhooks, screen management |
+| Backend API | FastAPI | Business logic, screen management |
 | Database | Supabase (PostgreSQL) | Multi-tenant relational data; can also leverage Supabase Auth/Storage/Realtime if useful later |
 | ORM | SQLAlchemy (async, via asyncpg) | Python ORM, works with FastAPI; Schema, migrations (Alembic), type-safe queries |
 | Auth | Clerk | Org/multi-tenant roles: Super Admin, Admin, Location Manager |
 | Real-time sync | WebSockets (Socket.io or native WS) or managed (Pusher/Ably) | Dashboard change → screen update push |
-| Background jobs / scheduling | Celery (+ Celery Beat) + Redis | Theme scheduling (breakfast/lunch/dinner, seasonal themes), heartbeat checks, async POS webhook processing, AI menu generation jobs |
+| Background jobs / scheduling | Celery (+ Celery Beat) + Redis | Theme scheduling (breakfast/lunch/dinner, seasonal themes), heartbeat checks, AI menu generation jobs |
 | Cache / pub-sub | Redis | Screen online/offline status, real-time channel fan-out |
 | Canvas / menu designer | Fabric.js or Konva.js | Drag-and-drop template editor |
 | Email | Resend | Onboarding, alerts (screen offline, billing) |
@@ -77,8 +77,6 @@ All data access must be scoped by `organization_id` at the query layer — never
 - `menu_items` (belongs to menu; name, price, description, image, availability)
 - `templates` (design layouts, org-owned or global library)
 - `themes` (time/season rules → which template/menu combo is active)
-- `pos_integrations` (per-location POS credentials/config, provider type)
-- `pos_sync_events` (audit log of price/availability changes from POS)
 - `users` (Clerk-linked, role, org/location scope)
 
 ---
@@ -90,10 +88,10 @@ All data access must be scoped by `organization_id` at the query layer — never
 3. **Screen management** — pair a screen (QR/code pairing flow), assign to location, monitor online/offline via heartbeat
 4. **Real-time publish** — edit menu → push to all assigned screens instantly
 5. **Theme scheduling** — time-of-day and date-range rules that auto-switch active menu/template
-6. **POS integration (phase 1: one provider)** — webhook or polling adapter that syncs price/availability into `menu_items`
+6. **QR codes** — generate styled codes for menus, promotions, and URLs; export SVG/PNG; show on boards
 7. **Multi-location dashboard** — org-wide view, per-location drill-down
 8. **Display client** — kiosk-mode web player, offline-resilient caching, auto-reconnect
-9. **Marketing landing page** — public site at `frontend/app/(marketing)/page.tsx`; 16-section structure (hero, integrations grid, template showcase, industries served, what-you-get, device compatibility, why-our-device, menu designer showcase, mobile/POS control, multi-admin, scale statement, AI menu generation, theme automation, why-digital-signage stats, testimonials, contact/footer). Original copy and imagery only — no reused third-party content, no fabricated stats/testimonials (mark unverified numbers with `TODO`). Full spec in PROMPTS.md, Prompt A.
+9. **Marketing landing page** — public site at `frontend/app/(marketing)/page.tsx`; 16-section structure (hero, integrations grid, template showcase, industries served, what-you-get, device compatibility, why-our-device, menu designer showcase, remote control, multi-admin, scale statement, AI menu generation, theme automation, why-digital-signage stats, testimonials, contact/footer). Original copy and imagery only — no reused third-party content, no fabricated stats/testimonials (mark unverified numbers with `TODO`). Full spec in PROMPTS.md, Prompt A.
 
 **Explicitly out of scope for v1:** native Android TV/Tizen/webOS/Roku apps, mobile app, queue management module, 20,000+ channel aggregator, social feed embeds. Revisit post-MVP.
 
@@ -105,12 +103,11 @@ Use an adapter pattern — one interface, provider-specific implementations:
 
 ```
 POSAdapter (abstract)
- ├── SquareAdapter
- ├── ToastAdapter
+ ├── CloverAdapter
  └── ClearMockAdapter (for local dev/demo)
 ```
 
-Each adapter normalizes incoming webhooks/polling data into a common `PriceUpdateEvent` / `AvailabilityUpdateEvent` shape before writing to `menu_items`. Queue incoming POS events through Redis to avoid webhook timeout/data-loss under load.
+Each adapter implements auth (Clover OAuth 2.0), catalog/SKU fetch, webhook parse, and price/availability sync into the same `pos_integrations` / `pos_sync_events` tables and Settings UI. Normalized events are `PriceUpdateEvent` / `AvailabilityUpdateEvent`. Queue incoming POS events through Redis/Celery (inline fallback) to avoid webhook timeout under load.
 
 ---
 
@@ -169,7 +166,7 @@ digital-signage-saas/
 
 1. **Phase 1 — Core dashboard + single screen display:** auth, org/location/screen CRUD, basic menu CRUD, manual publish, kiosk display client, pairing flow
 2. **Phase 2 — Real-time + designer:** WebSocket push, drag-and-drop template editor, theme scheduling
-3. **Phase 3 — POS integration:** one adapter live end-to-end, sync audit log, price-change UI feedback
+3. **Phase 3 — Content operations:** media library, playlists, QR codes, device health, offline playback
 4. **Phase 4 — Multi-location scale:** role-based access refinement, bulk screen actions, offline resilience hardening
 5. **Phase 5 (post-MVP):** mobile app, native TV apps, queue management, AI menu generation, billing/subscription (Stripe)
 
@@ -280,32 +277,27 @@ The following functionality is required to close the remaining core product gaps
 
 ### Integrations & Platform
 
-17. **Expanded POS Integrations**
-    - Keep the adapter architecture.
-    - Add providers such as Clover.
-    - Normalize price, availability, menu, SKU, webhook, and sync events through the common POS interface.
-
-18. **Public API**
-    - Secure APIs for organizations, locations, screens, menus, menu items, media, templates, playlists, schedules, devices, and POS synchronization.
+17. **Public API**
+    - Secure APIs for organizations, locations, screens, menus, menu items, media, templates, playlists, schedules, and devices.
     - API keys, scopes, rotation, revocation, rate limiting, logging, and documentation.
 
-19. **API Key Management**
+18. **API Key Management**
     - Organization-level API key creation, scoped permissions, rotation, revocation, last-used information, and audit history.
 
-20. **Analytics & Reporting**
-    - Screen uptime/offline status, heartbeat health, sync errors, content usage, QR scans, POS sync performance, and useful date/location filters.
+19. **Analytics & Reporting**
+    - Screen uptime/offline status, heartbeat health, sync errors, content usage, QR scans, and useful date/location filters.
 
-21. **Notifications & Alerts**
-    - Screen offline/online, POS sync failures, publishing failures, media processing failures, invitation events, and important system errors.
+20. **Notifications & Alerts**
+    - Screen offline/online, publishing failures, media processing failures, invitation events, and important system errors.
     - Configurable notification preferences.
 
-22. **Audit Logs**
-    - Organization-level history of authentication, team changes, content changes, publishing, scheduling, POS configuration, API keys, and important settings changes.
+21. **Audit Logs**
+    - Organization-level history of authentication, team changes, content changes, publishing, scheduling, API keys, and important settings changes.
 
-23. **Global Search**
+22. **Global Search**
     - Search menus, menu items, templates, media, screens, locations, team members, playlists, schedules, and other relevant entities.
 
-24. **Advanced Scheduling**
+23. **Advanced Scheduling**
     - Time-of-day, day-of-week, date-range, seasonal, holiday, recurring, location-specific, and screen-specific schedules.
     - Clear priority/conflict resolution when schedules overlap.
 
@@ -313,22 +305,22 @@ The following functionality is required to close the remaining core product gaps
 
 These are separate from the core signage CMS and should remain modular:
 
-25. **Guest Smart WiFi**
+24. **Guest Smart WiFi**
     - Branded captive portal, customer opt-in, email/phone capture, consent, location association, and analytics.
 
-26. **Marketing Tools**
+25. **Marketing Tools**
     - Customer segments, promotions, email/SMS campaigns where properly integrated, scheduling, and campaign analytics.
 
-27. **Loyalty Program**
+26. **Loyalty Program**
     - Customer enrollment, loyalty tracking, rewards, and integration with supported marketing/customer data systems.
 
-28. **Reputation Management**
+27. **Reputation Management**
     - Review aggregation where permitted, ratings overview, review monitoring, review links, and location-specific metrics.
 
-29. **Online Ordering**
+28. **Online Ordering**
     - Digital menus, ordering links, QR ordering, availability configuration, location configuration, and signage integration.
 
-30. **Interactive Touchscreen Elements**
+29. **Interactive Touchscreen Elements**
     - Touch buttons, polls, quizzes, promotions, navigation, and interactive menu components.
     - Use an extensible interaction/event model for future interactive features.
 
@@ -344,7 +336,7 @@ These are separate from the core signage CMS and should remain modular:
 - New real-time functionality must use the existing typed WebSocket event envelope.
 - New API contracts must use explicit Pydantic models and regenerate frontend OpenAPI types.
 - Do not expose secrets to the frontend.
-- Do not silently break existing menu, screen, scheduling, POS, pairing, or publishing functionality.
+- Do not silently break existing menu, screen, scheduling, pairing, or publishing functionality.
 - Do not mark a feature complete when only its UI exists.
 - Prioritize core CMS/display functionality before optional Hub modules.
 
@@ -366,16 +358,15 @@ These are separate from the core signage CMS and should remain modular:
 14. Video Management / Editor
 15. Multi-Screen / Video Wall Sync
 16. Background Music / Audio
-17. Expanded POS Integrations
-18. Public API / API Key Management
-19. Analytics & Reporting
-20. Notifications & Audit Logs
-21. Global Search
-22. AI Template Creator
-23. Guest Smart WiFi
-24. Marketing Tools
-25. Loyalty Program
-26. Reputation Management
-27. Online Ordering
-28. Interactive Touchscreen Elements
+17. Public API / API Key Management
+18. Analytics & Reporting
+19. Notifications & Audit Logs
+20. Global Search
+21. AI Template Creator
+22. Guest Smart WiFi
+23. Marketing Tools
+24. Loyalty Program
+25. Reputation Management
+26. Online Ordering
+27. Interactive Touchscreen Elements
 

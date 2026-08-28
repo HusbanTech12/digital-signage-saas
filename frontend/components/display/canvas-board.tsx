@@ -16,6 +16,7 @@ import {
   mergeAnimations,
   type DisplayAnimationConfig,
 } from "@/lib/display/animations";
+import { useDisplayMediaSrc } from "@/lib/display/use-display-media-src";
 import type { DesignerCanvasJson } from "@/lib/designer/canvas-io";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,7 @@ type CanvasObject = {
   scaleX?: number;
   scaleY?: number;
   angle?: number;
+  src?: string;
 };
 
 /**
@@ -152,6 +154,7 @@ function CanvasObjectView({
   index: number;
 }) {
   const type = (obj.type ?? "").toLowerCase();
+  const imageSrc = useDisplayMediaSrc(obj.src);
   const leftPct = ((obj.left ?? 0) / canvasWidth) * 100;
   const topPct = ((obj.top ?? 0) / canvasHeight) * 100;
   const widthPct =
@@ -183,6 +186,29 @@ function CanvasObjectView({
           background: obj.fill ?? "#333",
           opacity: obj.opacity ?? 1,
           borderRadius: obj.rx ?? obj.ry ?? 0,
+          transform,
+          ...animStyle,
+        }}
+      />
+    );
+  }
+
+  // Fabric images, including QR codes dropped onto the canvas.
+  if ((type === "image" || type === "fabricimage") && imageSrc) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageSrc}
+        alt=""
+        className={cn(animClass)}
+        style={{
+          position: "absolute",
+          left: `${leftPct}%`,
+          top: `${topPct}%`,
+          width: `${widthPct}%`,
+          height: `${heightPct}%`,
+          objectFit: "contain",
+          opacity: obj.opacity ?? 1,
           transform,
           ...animStyle,
         }}

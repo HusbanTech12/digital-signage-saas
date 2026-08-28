@@ -147,7 +147,7 @@ export interface Theme {
   createdAt: string;
 }
 
-export type PosProvider = "square" | "clear_mock";
+export type PosProvider = "clover" | "clear_mock";
 export type PosIntegrationStatus = "inactive" | "active" | "error";
 export type PosSyncEventStatus =
   | "received"
@@ -167,6 +167,8 @@ export interface PosIntegration {
     [key: string]: unknown;
   };
   hasCredentials: boolean;
+  oauthConnected?: boolean;
+  merchantId?: string | null;
   lastSyncAt: string | null;
   lastError: string | null;
   createdAt: string;
@@ -190,6 +192,48 @@ export interface PosSyncStatus {
   lastSyncAt: string | null;
   lastEventStatus: string | null;
   recentFailures: number;
+}
+
+export type QrDestinationType =
+  | "url"
+  | "menu"
+  | "promotion"
+  | "ordering"
+  | "text";
+
+export interface QrCode {
+  id: string;
+  organizationId: string;
+  locationId: string | null;
+  name: string;
+  shortCode: string;
+  destinationType: QrDestinationType | string;
+  targetUrl: string | null;
+  menuId: string | null;
+  menuName?: string | null;
+  textPayload: string | null;
+  trackingEnabled: boolean;
+  foregroundColor: string;
+  backgroundColor: string;
+  eyeColor: string | null;
+  moduleShape: string;
+  eyeShape: string;
+  errorCorrection: string;
+  quietZone: number;
+  logoMediaAssetId: string | null;
+  logoUrl: string | null;
+  logoSizeRatio: number;
+  caption: string | null;
+  sizePx: number;
+  scanCount: number;
+  lastScannedAt: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  encodedValue: string;
+  publicUrl: string | null;
+  renderSvgUrl: string;
+  renderPngUrl: string;
 }
 
 export interface User {

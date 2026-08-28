@@ -141,7 +141,12 @@ def _publish_events_redis(events: list[dict]) -> bool:
     try:
         import redis
 
-        client = redis.from_url(settings.redis_url, decode_responses=True)
+        client = redis.from_url(
+            settings.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=0.4,
+            socket_timeout=0.4,
+        )
         try:
             client.ping()
             pipe = client.pipeline()

@@ -2,15 +2,22 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.access import assert_same_org, require_roles
+from app.auth.access import assert_same_org
 from app.auth.clerk import get_current_user
+from app.auth.permissions import POS_CONFIGURE, POS_READ, require_permission
+from app.config import get_settings
 from app.schemas.pos import (
+    PosCatalogItemOut,
+    PosCatalogOut,
+    PosCloverVerificationOut,
     PosIntegrationCreate,
     PosIntegrationOut,
     PosIntegrationUpdate,
+    PosOAuthStartOut,
     PosSimulateIn,
     PosSyncEventOut,
     PosSyncStatusOut,
@@ -21,6 +28,8 @@ from app.services.pos.apply import (
     enqueue_pos_raw_event_async,
     process_pos_sync_event_async,
 )
+from app.services.pos.base import POSAdapter, get_adapter
+from app.services.pos.oauth import decode_oauth_state, encode_oauth_state
 from app.utils.ids import new_id
 from db.models import Location, PosIntegration, PosSyncEvent, User
 from db.session import get_db
@@ -62,6 +71,8 @@ async def _to_out(db: AsyncSession, row: PosIntegration) -> PosIntegrationOut:
         status=row.status,
         config=row.config if isinstance(row.config, dict) else {},
         has_credentials=bool(creds),
+        oauth_connected=bool(creds.get("accessToken")),
+        merchant_id=str(creds["merchantId"]) if creds.get("merchantId") else None,
         last_sync_at=last_sync,
         last_error=last_error,
         created_at=row.created_at,
@@ -80,10 +91,26 @@ async def _get_org_integration(
 def _provider_matches(url_provider: str, integration_provider: str) -> bool:
     a = url_provider.lower().replace("-", "_")
     b = integration_provider.lower().replace("-", "_")
-    if a == b:
-        return True
-    # Square webhook URL may target clear_mock demo integrations
-    return a == "square" and b in {"square", "clear_mock"}
+    return a == b
+
+
+def _require_adapter(provider: str) -> POSAdapter:
+    try:
+        return get_adapter(provider)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+_clover_verification_code: str | None = None
+
+
+def _store_clover_verification(payload: dict[str, Any]) -> str | None:
+    global _clover_verification_code
+    code = payload.get("verificationCode") or payload.get("verification_code")
+    if isinstance(code, str) and code.strip():
+        _clover_verification_code = code.strip()
+        return _clover_verification_code
+    return None
 
 
 def _verify_webhook_secret(
@@ -91,18 +118,16 @@ def _verify_webhook_secret(
     *,
     authorization: str | None,
     x_pos_signature: str | None,
+    x_clover_auth: str | None = None,
 ) -> None:
+    adapter = _require_adapter(integration.provider)
     creds = integration.credentials if isinstance(integration.credentials, dict) else {}
-    secret = creds.get("webhookSecret") or creds.get("webhook_secret")
-    if not secret:
-        return
-    token = None
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization.split(" ", 1)[1].strip()
-    if x_pos_signature:
-        token = x_pos_signature.strip()
-    if token != str(secret):
-        raise HTTPException(status_code=401, detail="Invalid POS webhook secret")
+    adapter.verify_webhook(
+        credentials=creds,
+        authorization=authorization,
+        x_pos_signature=x_pos_signature,
+        x_clover_auth=x_clover_auth,
+    )
 
 
 async def _accept_and_process(
@@ -147,7 +172,7 @@ async def list_integrations(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PosIntegrationOut]:
-    require_roles(user, "super_admin", "admin")
+    require_permission(user, POS_READ)
     result = await db.execute(
         select(PosIntegration)
         .where(PosIntegration.organization_id == user.organization_id)
@@ -167,7 +192,7 @@ async def create_integration(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PosIntegrationOut:
-    require_roles(user, "super_admin", "admin")
+    require_permission(user, POS_CONFIGURE)
     assert_same_org(user, body.organization_id)
     loc = await db.get(Location, body.location_id)
     if loc is None or loc.organization_id != user.organization_id:
@@ -196,7 +221,7 @@ async def update_integration(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PosIntegrationOut:
-    require_roles(user, "super_admin", "admin")
+    require_permission(user, POS_CONFIGURE)
     row = await _get_org_integration(db, user, integration_id)
     if body.credentials is not None:
         row.credentials = dict(body.credentials)
@@ -217,7 +242,7 @@ async def delete_integration(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    require_roles(user, "super_admin", "admin")
+    require_permission(user, POS_CONFIGURE)
     row = await _get_org_integration(db, user, integration_id)
     await db.delete(row)
     await db.commit()
@@ -233,7 +258,7 @@ async def list_integration_events(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PosSyncEvent]:
-    require_roles(user, "super_admin", "admin")
+    require_permission(user, POS_READ)
     await _get_org_integration(db, user, integration_id)
     result = await db.execute(
         select(PosSyncEvent)
@@ -249,7 +274,7 @@ async def get_sync_status(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PosSyncStatusOut:
-    require_roles(user, "super_admin", "admin", "location_manager")
+    require_permission(user, POS_READ)
     org_id = user.organization_id
     integrations = list(
         (
@@ -303,7 +328,7 @@ async def simulate_pos_updates(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PosWebhookAccepted:
-    require_roles(user, "super_admin", "admin")
+    require_permission(user, POS_CONFIGURE)
     row = await _get_org_integration(db, user, integration_id)
     if row.status == "inactive":
         raise HTTPException(status_code=400, detail="Integration is inactive")
@@ -313,6 +338,166 @@ async def simulate_pos_updates(
         payload={"updates": body.updates},
         event_type="simulate",
     )
+
+
+@router.get(
+    "/integrations/{integration_id}/oauth/start",
+    response_model=PosOAuthStartOut,
+)
+async def start_pos_oauth(
+    integration_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PosOAuthStartOut:
+    require_permission(user, POS_CONFIGURE)
+    row = await _get_org_integration(db, user, integration_id)
+    adapter = _require_adapter(row.provider)
+    if not adapter.supports_oauth:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{row.provider} does not use OAuth",
+        )
+    settings = get_settings()
+    redirect_uri = f"{settings.public_api_origin}/api/v1/pos/oauth/{row.provider}/callback"
+    state = encode_oauth_state(row.id)
+    return PosOAuthStartOut(
+        authorize_url=adapter.authorize_url(redirect_uri=redirect_uri, state=state),
+        provider=row.provider,
+    )
+
+
+@router.get("/oauth/clover/callback")
+async def clover_oauth_callback(
+    db: AsyncSession = Depends(get_db),
+    code: str | None = None,
+    state: str | None = None,
+    merchant_id: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    settings = get_settings()
+    frontend = settings.public_frontend_origin
+    if error:
+        return RedirectResponse(f"{frontend}/dashboard/settings?clover=error")
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="Missing OAuth code or state")
+    try:
+        integration_id = decode_oauth_state(state)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    row = await db.get(PosIntegration, integration_id)
+    if row is None or row.provider != "clover":
+        raise HTTPException(status_code=404, detail="Clover integration not found")
+    adapter = _require_adapter("clover")
+    tokens = await adapter.exchange_code(code=code, merchant_id=merchant_id)
+    creds = dict(row.credentials) if isinstance(row.credentials, dict) else {}
+    creds.update({k: v for k, v in tokens.items() if v})
+    row.credentials = creds
+    if row.status == "inactive":
+        row.status = "active"
+    await db.commit()
+    return RedirectResponse(f"{frontend}/dashboard/settings?clover=connected")
+
+
+@router.get(
+    "/integrations/{integration_id}/catalog",
+    response_model=PosCatalogOut,
+)
+async def get_pos_catalog(
+    integration_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PosCatalogOut:
+    require_permission(user, POS_CONFIGURE)
+    row = await _get_org_integration(db, user, integration_id)
+    adapter = _require_adapter(row.provider)
+    creds = row.credentials if isinstance(row.credentials, dict) else {}
+    config = row.config if isinstance(row.config, dict) else {}
+    items = await adapter.fetch_catalog(creds, config)
+    return PosCatalogOut(
+        items=[
+            PosCatalogItemOut(
+                external_sku=item.external_sku,
+                name=item.name,
+                price=item.price,
+                available=item.available,
+                external_id=item.external_id,
+            )
+            for item in items
+        ],
+        oauth_connected=bool(creds.get("accessToken")),
+    )
+
+
+@router.get("/clover/verification-code", response_model=PosCloverVerificationOut)
+async def get_clover_verification_code(
+    user: User = Depends(get_current_user),
+) -> PosCloverVerificationOut:
+    require_permission(user, POS_CONFIGURE)
+    return PosCloverVerificationOut(verification_code=_clover_verification_code)
+
+
+@webhook_router.post(
+    "/clover",
+    response_model=PosWebhookAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def clover_app_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    authorization: str | None = Header(default=None),
+    x_pos_signature: str | None = Header(default=None, alias="X-Pos-Signature"),
+    x_clover_auth: str | None = Header(default=None, alias="X-Clover-Auth"),
+) -> PosWebhookAccepted:
+    try:
+        payload: Any = await request.json()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Webhook body must be an object")
+    if _store_clover_verification(payload):
+        return PosWebhookAccepted(
+            accepted=True,
+            event_id="verification",
+            queued=False,
+            inline=False,
+        )
+    merchants = payload.get("merchants")
+    if not isinstance(merchants, dict) or not merchants:
+        raise HTTPException(status_code=400, detail="Clover webhook missing merchants")
+    last: PosWebhookAccepted | None = None
+    for merchant_id in merchants:
+        result = await db.execute(
+            select(PosIntegration).where(
+                PosIntegration.provider == "clover",
+                PosIntegration.status != "inactive",
+            )
+        )
+        match = None
+        for row in result.scalars().all():
+            creds = row.credentials if isinstance(row.credentials, dict) else {}
+            if str(creds.get("merchantId") or "") == str(merchant_id):
+                match = row
+                break
+        if match is None:
+            continue
+        _verify_webhook_secret(
+            match,
+            authorization=authorization,
+            x_pos_signature=x_pos_signature,
+            x_clover_auth=x_clover_auth,
+        )
+        last = await _accept_and_process(
+            db,
+            integration=match,
+            payload=payload,
+            event_type="webhook_raw",
+        )
+    if last is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No Clover integration matched this merchant",
+        )
+    return last
 
 
 @webhook_router.post(
@@ -327,6 +512,7 @@ async def pos_webhook(
     db: AsyncSession = Depends(get_db),
     authorization: str | None = Header(default=None),
     x_pos_signature: str | None = Header(default=None, alias="X-Pos-Signature"),
+    x_clover_auth: str | None = Header(default=None, alias="X-Clover-Auth"),
 ) -> PosWebhookAccepted:
     try:
         payload: Any = await request.json()
@@ -334,6 +520,14 @@ async def pos_webhook(
         raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Webhook body must be an object")
+
+    if provider.lower() == "clover" and _store_clover_verification(payload):
+        return PosWebhookAccepted(
+            accepted=True,
+            event_id="verification",
+            queued=False,
+            inline=False,
+        )
 
     integration = await db.get(PosIntegration, integration_id)
     if integration is None:
@@ -347,6 +541,7 @@ async def pos_webhook(
         integration,
         authorization=authorization,
         x_pos_signature=x_pos_signature,
+        x_clover_auth=x_clover_auth,
     )
     return await _accept_and_process(
         db,

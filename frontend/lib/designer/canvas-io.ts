@@ -340,6 +340,35 @@ export async function addImageFromUrl(
   canvas.requestRenderAll();
 }
 
+/**
+ * Drop a QR code from the QR library onto the canvas.
+ *
+ * The image is the API's own render endpoint, so the code stays in sync with
+ * its destination and styling without re-encoding anything client-side. The
+ * source id is kept on the object so the designer can resolve it back later.
+ */
+export async function addQrCodeObject(
+  canvas: Canvas,
+  qr: { id: string; renderSvgUrl: string },
+  position?: DesignerPoint,
+  size = 220,
+): Promise<FabricObject> {
+  const { FabricImage } = await import("fabric");
+  const img = await FabricImage.fromURL(qr.renderSvgUrl, {
+    crossOrigin: "anonymous",
+  });
+  img.scaleToWidth(size);
+  img.set({
+    left: position?.left ?? 80,
+    top: position?.top ?? 80,
+  });
+  (img as FabricObject & { qrCodeId?: string }).qrCodeId = qr.id;
+  canvas.add(img);
+  canvas.setActiveObject(img);
+  canvas.requestRenderAll();
+  return img;
+}
+
 export async function addPriceBox(
   canvas: Canvas,
   position?: DesignerPoint,

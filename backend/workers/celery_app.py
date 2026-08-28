@@ -20,6 +20,13 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    broker_connection_timeout=2,
+    broker_connection_retry=False,
+    broker_connection_retry_on_startup=False,
+    broker_transport_options={
+        "socket_connect_timeout": 2,
+        "socket_timeout": 2,
+    },
     beat_schedule={
         "apply-due-themes": {
             "task": "workers.tasks.apply_due_themes_task",

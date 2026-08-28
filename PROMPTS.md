@@ -53,7 +53,7 @@ Sections, in order:
 6. **Device compatibility** — grid of supported hardware/platforms (own device + major streaming boxes/smart TV brands)
 7. **Why our device** — reliability feature list (stability, offline resilience, remote management, resolution, connectivity)
 8. **Menu designer showcase** — screenshot/mockup + short description of the drag-and-drop editor
-9. **Remote control** — two-column: mobile app control + POS integration, each with a short description and image/mockup
+9. **Remote control** — two-column: mobile dashboard control + live board updates, each with a short description and image/mockup
 10. **Multi-admin / multi-location** — dashboard mockup + role descriptions (Super Admin, Admin, multi-location, multi-screen)
 11. **Scale statement** — short section on controlling one screen or thousands from one dashboard
 12. **AI menu generation** — short feature callout
@@ -82,15 +82,15 @@ Build menu and menu_items CRUD endpoints, template endpoints, and the publish en
 
 ### Prompt 8: Real-Time Sync
 
-Add WebSocket sync per Section 3/7: publish action pushes an update through the event envelope (`{ type, screenId, payload, ts }`) via Redis pub-sub. Wire the display client (Prompt 4) to subscribe per-screen and re-render on push, with auto-reconnect (exponential backoff) and polling fallback. Target: under 3 seconds save-to-screen per Section 13.
+Add WebSocket sync per Section 3: publish action pushes an update through the event envelope (`{ type, screenId, payload, ts }`) via Redis pub-sub. Wire the display client (Prompt 4) to subscribe per-screen and re-render on push, with auto-reconnect (exponential backoff) and polling fallback. Target: under 3 seconds save-to-screen per Section 13.
 
 ### Prompt 9: Theme Scheduling
 
 Implement Celery + Celery Beat per Section 2/6: time-of-day and seasonal theme-switch rules, and a heartbeat task marking screens offline on missed check-ins. Surface live online/offline status on the dashboard (replacing any mock status).
 
-### Prompt 10: POS Integration (First Provider)
+### Prompt 10: POS Integration (Clover)
 
-Implement the adapter pattern from Section 7 for one POS provider (confirm which). Normalize events into `PriceUpdateEvent` / `AvailabilityUpdateEvent`, queue through Redis, write to `menu_items`, and log to `pos_sync_events`. Add a sync-status indicator to the dashboard.
+Implement the adapter pattern from Section 7. Clover uses OAuth 2.0, inventory fetch, and `/api/v1/webhooks/pos/clover/{integration_id}`. Normalize events into `PriceUpdateEvent` / `AvailabilityUpdateEvent`, queue through Redis, write to `menu_items`, and log to `pos_sync_events`. Mapping, logs, and simulate are shared in Settings.
 
 ### Prompt 11: Deployment
 

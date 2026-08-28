@@ -12,6 +12,7 @@ import {
   Music,
   LayoutGrid,
   CalendarClock,
+  QrCode,
   Users,
   Settings,
   type LucideIcon,
@@ -130,6 +131,18 @@ export const DASHBOARD_NAV: NavItem[] = [
     ],
   },
   {
+    label: "QR codes",
+    href: "/dashboard/qr-codes",
+    icon: QrCode,
+    roles: [
+      "super_admin",
+      "admin",
+      "location_manager",
+      "content_manager",
+      "viewer",
+    ],
+  },
+  {
     label: "Themes",
     href: "/dashboard/themes",
     icon: CalendarClock,
@@ -162,6 +175,9 @@ export function navForRole(role: Role): NavItem[] {
     }
     if (item.href === "/dashboard/audio") {
       return hasPermission(role, PERMISSIONS.AUDIO_READ);
+    }
+    if (item.href === "/dashboard/qr-codes") {
+      return hasPermission(role, PERMISSIONS.QR_READ);
     }
     return item.roles.includes(role);
   });

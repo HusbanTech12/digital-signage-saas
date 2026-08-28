@@ -17,3 +17,5 @@ tzdata>=2024.1
 certifi>=2024.0.0
 python-multipart>=0.0.9
 boto3>=1.35.0
+segno>=1.6.1
+pillow>=11.0.0

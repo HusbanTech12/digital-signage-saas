@@ -5,6 +5,7 @@ import {
   AnimatedBoard,
   AnimatedItem,
 } from "@/components/display/animated-board";
+import { BoardQrBadge } from "@/components/display/board-qr-badge";
 import {
   AutoFitContent,
   DisplaySurface,
@@ -133,6 +134,13 @@ export function PremiumMenuBoard({
   const sectionCount = Math.max(byCategory.length, 1);
   let itemIndex = 0;
 
+  // The badge is an overlay, so the board reserves a gutter on its side rather
+  // than letting a code sit on top of prices.
+  const qrGutter = config.qr.enabled
+    ? config.qr.sizePct + (config.qr.label ? 3.5 : 1.5)
+    : 0;
+  const qrOnTop = config.qr.position.startsWith("top");
+
   return (
     <DisplaySurface
       style={{
@@ -146,7 +154,9 @@ export function PremiumMenuBoard({
         className="flex h-full w-full flex-col overflow-hidden"
         style={{
           color: config.textColor,
-          padding: `${bu(s.padY)} ${bu(s.padX)}`,
+          padding: `${bu(s.padY + (qrOnTop ? qrGutter : 0))} ${bu(s.padX)} ${bu(
+            s.padY + (qrOnTop ? 0 : qrGutter),
+          )}`,
         }}
       >
         <header
@@ -363,6 +373,8 @@ export function PremiumMenuBoard({
           </div>
         </AutoFitContent>
       </AnimatedBoard>
+
+      <BoardQrBadge config={config.qr} textColor={config.mutedColor} />
     </DisplaySurface>
   );
 }

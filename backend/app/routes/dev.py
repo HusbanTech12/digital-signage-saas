@@ -5,7 +5,7 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -450,11 +450,18 @@ async def seed_demo_data(
             existing.location_ids = theme.location_ids
             existing.enabled = theme.enabled
 
-    pos = PosIntegration(
-        id="pos_square_downtown",
-        location_id="loc_downtown",
+    await db.execute(
+        delete(PosIntegration).where(
+            (PosIntegration.provider == "square")
+            | (PosIntegration.id == "pos_square_downtown")
+        )
+    )
+
+    clover = PosIntegration(
+        id="pos_clover_airport",
+        location_id="loc_airport",
         organization_id="org_demo_001",
-        provider="square",
+        provider="clover",
         credentials={"webhookSecret": "demo-pos-secret"},
         config={
             "menuId": "menu_all_day",
@@ -467,15 +474,15 @@ async def seed_demo_data(
         status="active",
         created_at=datetime(2026, 4, 1, tzinfo=timezone.utc),
     )
-    existing_pos = await db.get(PosIntegration, pos.id)
-    if existing_pos is None:
-        db.add(pos)
+    existing_clover = await db.get(PosIntegration, clover.id)
+    if existing_clover is None:
+        db.add(clover)
     else:
-        existing_pos.location_id = pos.location_id
-        existing_pos.provider = pos.provider
-        existing_pos.credentials = pos.credentials
-        existing_pos.config = pos.config
-        existing_pos.status = pos.status
+        existing_clover.location_id = clover.location_id
+        existing_clover.provider = clover.provider
+        existing_clover.credentials = clover.credentials
+        existing_clover.config = clover.config
+        existing_clover.status = clover.status
 
     await db.commit()
     return {
@@ -485,7 +492,7 @@ async def seed_demo_data(
         "menus": ["menu_all_day", "menu_breakfast"],
         "templates": ["tpl_classic_board", "tpl_portrait_promo"],
         "themes": ["theme_breakfast", "theme_holiday"],
-        "posIntegrations": ["pos_square_downtown"],
+        "posIntegrations": ["pos_clover_airport"],
         "devAuthUsers": [
             "user_clerk_super_demo",
             "user_clerk_admin_demo",

@@ -71,6 +71,33 @@ export function getPosSyncStatusApi(token: AuthToken) {
   return apiFetch<PosSyncStatus>("/api/v1/pos/sync-status", { token });
 }
 
+export function startPosOAuthApi(token: AuthToken, integrationId: string) {
+  return apiFetch<{ authorizeUrl: string; provider: string }>(
+    `/api/v1/pos/integrations/${integrationId}/oauth/start`,
+    { token },
+  );
+}
+
+export function listPosCatalogApi(token: AuthToken, integrationId: string) {
+  return apiFetch<{
+    items: Array<{
+      externalSku: string;
+      name: string;
+      price: number | null;
+      available: boolean | null;
+      externalId: string | null;
+    }>;
+    oauthConnected: boolean;
+  }>(`/api/v1/pos/integrations/${integrationId}/catalog`, { token });
+}
+
+export function getCloverVerificationCodeApi(token: AuthToken) {
+  return apiFetch<{ verificationCode: string | null }>(
+    "/api/v1/pos/clover/verification-code",
+    { token },
+  );
+}
+
 export function simulatePosUpdatesApi(
   token: AuthToken,
   integrationId: string,

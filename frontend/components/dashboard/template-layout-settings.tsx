@@ -1,6 +1,12 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
 import { PremiumMenuBoard } from "@/components/display/premium-menu-board";
 import {
   BOARD_TRANSITION_OPTIONS,
@@ -11,12 +17,22 @@ import {
 import {
   DEFAULT_MENU_DISPLAY_CONFIG,
   mergeDisplayConfig,
+  type BoardQrPosition,
   type MenuDisplayConfig,
 } from "@/lib/display/menu-board-theme";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { MenuItem, ScreenOrientation } from "@/lib/types/schema";
+import { useApiAuthToken } from "@/lib/api/auth-token";
+import { listQrCodes } from "@/lib/data/qr-codes";
+import type { MenuItem, QrCode, ScreenOrientation } from "@/lib/types/schema";
+
+const QR_POSITIONS: { id: BoardQrPosition; label: string }[] = [
+  { id: "bottom-right", label: "Bottom right" },
+  { id: "bottom-left", label: "Bottom left" },
+  { id: "top-right", label: "Top right" },
+  { id: "top-left", label: "Top left" },
+];
 
 function ColorField({
   label,
@@ -69,6 +85,24 @@ export const TemplateLayoutSettings = forwardRef<
   const initial = mergeDisplayConfig(config);
   const [draft, setDraft] = useState<MenuDisplayConfig>(initial);
   const [previewTick, setPreviewTick] = useState(0);
+  const [qrCodes, setQrCodes] = useState<QrCode[]>([]);
+  const { getApiToken } = useApiAuthToken();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getApiToken();
+        const result = await listQrCodes(token);
+        if (!cancelled) setQrCodes(result.qrCodes);
+      } catch {
+        /* the board still works without the QR library */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getApiToken]);
 
   const previewConfig = useMemo(
     () =>
@@ -102,6 +136,18 @@ export const TemplateLayoutSettings = forwardRef<
       animations: { ...d.animations, ...patch },
     }));
     setPreviewTick((t) => t + 1);
+  }
+
+  function patchQr(patch: Partial<MenuDisplayConfig["qr"]>) {
+    setDraft((d) => ({ ...d, qr: { ...d.qr, ...patch } }));
+  }
+
+  function selectQrCode(qrCodeId: string) {
+    const selected = qrCodes.find((qr) => qr.id === qrCodeId);
+    patchQr({
+      qrCodeId: selected?.id ?? null,
+      imageUrl: selected?.renderSvgUrl ?? null,
+    });
   }
 
   return (
@@ -317,6 +363,95 @@ export const TemplateLayoutSettings = forwardRef<
             >
               Replay preview
             </Button>
+          </div>
+
+          <div className="space-y-3 border-t border-border pt-4">
+            <div>
+              <h3 className="text-sm font-semibold">QR badge</h3>
+              <p className="text-xs text-muted-foreground">
+                Overlay a code from the QR library so guests can scan the board.
+                The image is cached with the rest of the screen content, so it
+                keeps working offline.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.qr.enabled}
+                onChange={(e) => patchQr({ enabled: e.target.checked })}
+              />
+              Show a QR badge on this board
+            </label>
+            {draft.qr.enabled ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="qr-code-select">QR code</Label>
+                  <select
+                    id="qr-code-select"
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={draft.qr.qrCodeId ?? ""}
+                    onChange={(e) => selectQrCode(e.target.value)}
+                  >
+                    <option value="">Select a QR code…</option>
+                    {qrCodes.map((qr) => (
+                      <option key={qr.id} value={qr.id}>
+                        {qr.name}
+                      </option>
+                    ))}
+                  </select>
+                  {qrCodes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      No QR codes yet — create one under QR codes first.
+                    </p>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="qr-position">Position</Label>
+                    <select
+                      id="qr-position"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={draft.qr.position}
+                      onChange={(e) =>
+                        patchQr({ position: e.target.value as BoardQrPosition })
+                      }
+                    >
+                      {QR_POSITIONS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="qr-badge-size">
+                      Size ({draft.qr.sizePct}% of the board)
+                    </Label>
+                    <input
+                      id="qr-badge-size"
+                      type="range"
+                      min={6}
+                      max={30}
+                      step={1}
+                      className="w-full"
+                      value={draft.qr.sizePct}
+                      onChange={(e) =>
+                        patchQr({ sizePct: Number(e.target.value) })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="qr-badge-label">Label under the badge</Label>
+                  <Input
+                    id="qr-badge-label"
+                    value={draft.qr.label}
+                    onChange={(e) => patchQr({ label: e.target.value })}
+                    placeholder="SCAN FOR MENU"
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 

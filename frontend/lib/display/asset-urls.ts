@@ -34,6 +34,7 @@ export function collectRawAssetUrls(payload: DisplayPayload): string[] {
     add(item.imageUrl);
   }
   walkCanvas(payload.canvasJson);
+  add(payload.displayConfig?.qr?.imageUrl);
 
   for (const slide of payload.playlist?.slides ?? []) {
     add(slide.mediaUrl);
@@ -41,6 +42,7 @@ export function collectRawAssetUrls(payload: DisplayPayload): string[] {
       add(item.imageUrl);
     }
     walkCanvas(slide.canvasJson);
+    add(slide.displayConfig?.qr?.imageUrl);
   }
 
   for (const track of payload.audio?.tracks ?? []) {
